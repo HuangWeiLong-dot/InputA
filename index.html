@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Comprehensible Input Reader - 语言学习阅读器</title>
+    <script>
+      // Apply the saved reader theme before first paint so there is no flash of
+      // the wrong background colour (the store persists it under this key).
+      try {
+        var savedSettings = JSON.parse(localStorage.getItem('language_reader_settings') || 'null');
+        document.documentElement.setAttribute('data-theme', (savedSettings && savedSettings.theme) || 'sepia');
+      } catch (error) {
+        document.documentElement.setAttribute('data-theme', 'sepia');
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
