@@ -72,7 +72,10 @@ const loadSettings = (): ReaderSettings => {
   } catch {
     // fallback
   }
-  return { fontSize: 18, theme: 'sepia', lineHeight: 1.8 };
+  // 20px is the new baseline: comfortable for long-form reading on the wide
+  // screens this app targets. Existing readers keep whatever they set, since
+  // the saved value wins over this default.
+  return { fontSize: 20, theme: 'sepia', lineHeight: 1.8 };
 };
 
 const persistSettings = (settings: ReaderSettings) => {

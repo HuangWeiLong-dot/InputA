@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { tokenizeText, extractWordsFromTokens, paginateText } from '../utils/tokenizer';
 import { useVocabularyStore } from '../store/useVocabularyStore';
+import { normalizeWordStatus } from '../utils/wordLevel';
 
 describe('Tokenizer Utility', () => {
   it('correctly splits text into words, punctuation, and contractions', () => {
@@ -46,53 +47,136 @@ describe('Tokenizer Utility', () => {
   });
 });
 
-describe('Vocabulary Store & Auto-Known Page Turn Logic', () => {
+describe('Vocabulary Store: levels and the page-turn rule', () => {
   beforeEach(() => {
     useVocabularyStore.getState().clearVocabulary();
   });
 
-  it('marks a word as learning and persists to state', () => {
+  it('stores a manually picked proficiency level, case-insensitively', () => {
     const store = useVocabularyStore.getState();
-    store.markLearning('ubiquitous');
+    store.setWordLevel('ubiquitous', 3);
 
-    expect(useVocabularyStore.getState().getWordStatus('ubiquitous')).toBe('learning');
-    expect(useVocabularyStore.getState().getWordStatus('UBIQUITOUS')).toBe('learning');
+    expect(useVocabularyStore.getState().getWordStatus('ubiquitous')).toBe(3);
+    expect(useVocabularyStore.getState().getWordStatus('UBIQUITOUS')).toBe(3);
   });
 
-  it('marks a word as known', () => {
+  it('files a clicked word as 生词 only when it is not already filed', () => {
     const store = useVocabularyStore.getState();
-    store.markKnown('ephemeral');
 
-    expect(useVocabularyStore.getState().getWordStatus('ephemeral')).toBe('known');
+    store.markAsNewWord('ubiquitous');
+    expect(useVocabularyStore.getState().words['ubiquitous']).toBe(5);
+
+    // Calling it again changes nothing, and the lookup is case-insensitive.
+    store.markAsNewWord('UBIQUITOUS');
+    expect(useVocabularyStore.getState().words['ubiquitous']).toBe(5);
+
+    // A level the reader picked by hand survives a click in the text.
+    store.setWordLevel('wonderland', 2);
+    store.markAsNewWord('wonderland');
+    expect(useVocabularyStore.getState().words['wonderland']).toBe(2);
+
+    // So does 已掌握: clicking must not resurrect a mastered word as 生词.
+    store.markMastered('alice');
+    store.markAsNewWord('alice');
+    expect(useVocabularyStore.getState().words['alice']).toBe('mastered');
   });
 
-  it('auto-marks unmarked words as known when turning page, but preserves learning words', () => {
+  it('marks a word as mastered', () => {
+    const store = useVocabularyStore.getState();
+    store.markMastered('ephemeral');
+
+    expect(useVocabularyStore.getState().getWordStatus('ephemeral')).toBe('mastered');
+  });
+
+  it('files unclicked page words as mastered, and never overwrites a level', () => {
     const store = useVocabularyStore.getState();
 
-    // User clicked 'curiosity' during reading
-    store.markLearning('curiosity');
+    // Clicked during reading → level 5; levelled by hand → level 2.
+    store.setWordLevel('curiosity', 5);
+    store.setWordLevel('wonderland', 2);
 
-    // Current page contains: 'alice', 'curiosity', 'wonderland', 'rabbit'
     const pageWords = ['alice', 'curiosity', 'wonderland', 'rabbit'];
+    const newlyMarked = store.markPageWordsAsMastered(pageWords);
 
-    const newlyMarked = store.markPageWordsAsKnown(pageWords);
+    // Only the two never-seen words are filed.
+    expect(newlyMarked).toBe(2);
 
-    // Should have marked 'alice', 'wonderland', 'rabbit' (3 words) as known
-    expect(newlyMarked).toBe(3);
+    const words = useVocabularyStore.getState().words;
+    expect(words['curiosity']).toBe(5); // still "生词", the reader clicked it
+    expect(words['wonderland']).toBe(2); // the reader's own judgement wins
+    expect(words['alice']).toBe('mastered');
+    expect(words['rabbit']).toBe('mastered');
+  });
 
-    const currentWords = useVocabularyStore.getState().words;
-    expect(currentWords['curiosity']).toBe('learning'); // Must remain learning!
-    expect(currentWords['alice']).toBe('known');
-    expect(currentWords['wonderland']).toBe('known');
-    expect(currentWords['rabbit']).toBe('known');
+  it('leaves already-mastered words alone and ignores single letters', () => {
+    const store = useVocabularyStore.getState();
+    store.markMastered('already');
+
+    expect(store.markPageWordsAsMastered(['already', 'a', 'I', 'b'])).toBe(0);
+    expect(useVocabularyStore.getState().words['already']).toBe('mastered');
   });
 
   it('removes a word from vocabulary completely', () => {
     const store = useVocabularyStore.getState();
-    store.markLearning('temporary');
-    expect(store.getWordStatus('temporary')).toBe('learning');
+    store.setWordLevel('temporary', 4);
+    expect(store.getWordStatus('temporary')).toBe(4);
 
     store.removeWord('temporary');
     expect(store.getWordStatus('temporary')).toBe('unknown');
+  });
+});
+
+/**
+ * The two-state vocabulary ('learning' / 'known') shipped before the 5-level
+ * scale, so saved data has to be migrated rather than silently dropped.
+ */
+describe('Word status migration', () => {
+  it('maps the old two-state values onto the levels they meant', () => {
+    expect(normalizeWordStatus('learning')).toBe(5); // clicked → 生词
+    expect(normalizeWordStatus('known')).toBe('mastered'); // page turn → 掌握
+  });
+
+  it('passes through current values and rejects anything else', () => {
+    expect(normalizeWordStatus(1)).toBe(1);
+    expect(normalizeWordStatus(5)).toBe(5);
+    expect(normalizeWordStatus('mastered')).toBe('mastered');
+    expect(normalizeWordStatus(0)).toBeNull();
+    expect(normalizeWordStatus(6)).toBeNull();
+    expect(normalizeWordStatus(2.5)).toBeNull();
+    expect(normalizeWordStatus(undefined)).toBeNull();
+    expect(normalizeWordStatus({ level: 3 })).toBeNull();
+  });
+
+  /**
+   * The end-to-end version of the above: a word list actually sitting in
+   * localStorage, read back by a freshly loaded store. This is the case that
+   * silently empties a real reader's vocabulary if the migration regresses.
+   */
+  it('loads a word list saved by the two-state version without losing words', async () => {
+    localStorage.setItem(
+      'language_reader_vocabulary',
+      JSON.stringify({ words: { curiosity: 'learning', alice: 'known', wonderland: 3 } }),
+    );
+
+    vi.resetModules();
+    const { useVocabularyStore: freshStore } = await import('../store/useVocabularyStore');
+
+    expect(freshStore.getState().words).toEqual({
+      curiosity: 5, // was clicked → 生词
+      alice: 'mastered', // was auto-filed → 掌握
+      wonderland: 3, // already a level, untouched
+    });
+  });
+
+  it('skips unrecognizable entries and keeps the rest', async () => {
+    localStorage.setItem(
+      'language_reader_vocabulary',
+      JSON.stringify({ words: { junk: 'nonsense', good: 2 } }),
+    );
+
+    vi.resetModules();
+    const { useVocabularyStore: freshStore } = await import('../store/useVocabularyStore');
+
+    expect(freshStore.getState().words).toEqual({ good: 2 });
   });
 });

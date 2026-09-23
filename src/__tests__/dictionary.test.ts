@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { UNKNOWN_PART_OF_SPEECH } from '../services/dictionaryApi';
 
 /**
  * The dictionary lookup used to break entirely whenever the browser could not
@@ -95,6 +96,41 @@ const LOCAL_ECDICT_INFLECTED_PAYLOAD = {
   bnc: 3269,
   frq: 3252,
   audio: null,
+};
+
+/**
+ * A definition column that opens with the article "A" - i.e. an ordinary English
+ * sentence, not a WordNet code. Roughly 30% of ECDICT definition lines look like
+ * this, and they used to be labelled "adjective" with the first word eaten.
+ */
+const LOCAL_ECDICT_ARTICLE_A_PAYLOAD = {
+  query: 'air bed',
+  word: 'air bed',
+  matchedBy: 'word',
+  phonetic: null,
+  translation: 'n. 充气床垫',
+  definition: 'A sack or matters inflated with air, and used as a bed.',
+  pos: null,
+  partsOfSpeech: [],
+  tag: null,
+  tags: [],
+  lemma: null,
+  inflection: null,
+  forms: [],
+  collins: null,
+  oxford: false,
+  bnc: null,
+  frq: null,
+  audio: null,
+};
+
+/** A coded line ("n. …") followed by a line with no code at all. */
+const LOCAL_ECDICT_MIXED_PAYLOAD = {
+  ...LOCAL_ECDICT_ARTICLE_A_PAYLOAD,
+  query: "ain't",
+  word: "ain't",
+  translation: 'are not 的缩写',
+  definition: "n. a score in baseball\n   [Colloq. or illiterate speech]. See An't.",
 };
 
 function stubResponse(body: unknown, status = 200) {
@@ -299,6 +335,52 @@ describe('Dictionary lookup', () => {
     expect(entry?.extra?.lemma).toBe('run');
     expect(entry?.extra?.inflection).toBe('现在分词');
     expect(entry?.extra?.forms).toEqual([{ label: '复数', words: ['runnings'] }]);
+  });
+
+  it('keeps the first word of a definition that opens with the article "A"', async () => {
+    // Regression: the POS prefix used to allow an optional dot, so the leading
+    // "A" of a plain English sentence was consumed as the WordNet code `a.` -
+    // the line came out labelled "adjective" and had lost its first word.
+    stubFetch('ok', (url) =>
+      url === '/api/dict?word=air%20bed'
+        ? stubResponse(LOCAL_ECDICT_ARTICLE_A_PAYLOAD)
+        : stubResponse({}, 404),
+    );
+
+    const { lookupWord } = await loadService();
+    const entry = (await lookupWord('air bed')).entry;
+
+    // Not "adjective", and the sentence is intact including its first word.
+    expect(entry?.meanings.map((meaning) => meaning.partOfSpeech)).toEqual([
+      UNKNOWN_PART_OF_SPEECH,
+    ]);
+    expect(entry?.meanings[0].definitions.map((item) => item.definition)).toEqual([
+      'A sack or matters inflated with air, and used as a bed.',
+    ]);
+  });
+
+  it('labels a coded line and leaves an uncoded one unlabelled', async () => {
+    // "n. " keeps its noun group; the bracketed usage note carries no code, so
+    // it must keep its whole text under the sentinel instead of being guessed at.
+    // encodeURIComponent leaves "'" alone, so the request URL keeps the bare
+    // apostrophe rather than %27.
+    stubFetch('ok', (url) =>
+      url === "/api/dict?word=ain't" ? stubResponse(LOCAL_ECDICT_MIXED_PAYLOAD) : stubResponse({}, 404),
+    );
+
+    const { lookupWord } = await loadService();
+    const entry = (await lookupWord("ain't")).entry;
+
+    expect(entry?.meanings.map((meaning) => meaning.partOfSpeech)).toEqual([
+      'noun',
+      UNKNOWN_PART_OF_SPEECH,
+    ]);
+    expect(entry?.meanings[0].definitions.map((item) => item.definition)).toEqual([
+      'a score in baseball',
+    ]);
+    expect(entry?.meanings[1].definitions[0].definition).toBe(
+      "[Colloq. or illiterate speech]. See An't.",
+    );
   });
 
   it('skips the offline dictionary when the backend reports no database', async () => {

@@ -1,4 +1,17 @@
-export type WordStatus = 'learning' | 'known';
+/**
+ * 熟练度：1 最浅（熟知）→ 5 最深（生词）。颜色越深表示这个词越不熟。
+ */
+export type WordLevel = 1 | 2 | 3 | 4 | 5;
+
+/**
+ * 一个词的收录状态。
+ *
+ *   1-5       熟练度，正文里按色阶高亮（见 src/utils/wordLevel.ts）
+ *   'mastered' 独立的第 6 个状态「掌握」：正文不再高亮
+ *
+ * 从未被收录的词不在这里表示，由 getWordStatus 返回 'unknown'。
+ */
+export type WordStatus = WordLevel | 'mastered';
 
 export interface Phonetic {
   text?: string;

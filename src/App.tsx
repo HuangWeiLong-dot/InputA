@@ -18,7 +18,7 @@ import { SentenceAnalysisModal } from './components/SentenceAnalysisModal';
 export const App: React.FC = () => {
   const { currentBook, currentChapterIndex, theme, selectedSentence, setPages, setCurrentBook } =
     useReaderStore();
-  const { markLearning } = useVocabularyStore();
+  const { markAsNewWord } = useVocabularyStore();
 
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [surroundingSentence, setSurroundingSentence] = useState<string>('');
@@ -51,7 +51,14 @@ export const App: React.FC = () => {
     setPages(paginateText(chapter.content, WORDS_PER_PAGE));
   }, [currentBook, currentChapterIndex, setPages]);
 
-  // Core rule 6.2: clicking a word marks it as "learning" immediately.
+  /**
+   * Core rule: clicking a word in the text files it as the deepest level, 5
+   * 「生词」 — the first time only. A word that already carries a status (a
+   * level the reader picked, or 已掌握) is still looked up, but left alone, so
+   * the panel shows the judgement they made instead of resetting it. This also
+   * covers the panel's 重试 button, which re-runs this same handler.
+   * See src/utils/wordLevel.ts for the full rule.
+   */
   const handleSelectWord = useCallback(
     async (word: string, sentence: string) => {
       const clean = word.trim().toLowerCase();
@@ -60,7 +67,7 @@ export const App: React.FC = () => {
       setActiveWord(clean);
       setSurroundingSentence(sentence);
       setIsDrawerOpen(true);
-      markLearning(clean);
+      markAsNewWord(clean);
 
       setIsLoadingDefinition(true);
       setDefinitionEntry(null);
@@ -75,7 +82,7 @@ export const App: React.FC = () => {
         setIsLoadingDefinition(false);
       }
     },
-    [markLearning],
+    [markAsNewWord],
   );
 
   const handleRetryLookup = useCallback(() => {
@@ -93,11 +100,13 @@ export const App: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-[var(--bg-main)] text-[var(--text-main)]">
       {/*
         The reading column narrows while the definition drawer is open on wide
-        screens, so looked-up words stay visible instead of being covered.
+        screens, so looked-up words stay visible instead of being covered. The
+        reserved width is the same custom property the drawer sizes itself with
+        (--drawer-width in index.css), so the two cannot drift apart.
       */}
       <div
         className={`flex-1 flex flex-col min-w-0 transition-[margin] duration-200 ease-out ${
-          isDrawerOpen ? 'md:mr-96' : ''
+          isDrawerOpen ? 'lg:mr-[var(--drawer-width)]' : ''
         }`}
       >
         <Header />

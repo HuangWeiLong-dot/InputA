@@ -41,6 +41,40 @@
 
 /* ------------------------------- Design tokens ---------------------------- */
 @layer base {
+  /*
+   * Layout tokens that are shared by more than one component. The definition
+   * panel width lives here because the drawer sizes itself with it and App.tsx
+   * reserves the same amount as a right margin on the reading column - they
+   * must agree or the panel covers the text it is explaining.
+   */
+  :root {
+    --drawer-width: 26rem;
+
+    /*
+     * 熟练度色阶（1 最浅 → 5 最深）。每一级都由该主题的 --level-ink 与页面
+     * 底色混合得到，而不是写死 5 组颜色：
+     *   - 色阶必然单调（同一墨色、同一底色，只是比例递增）
+     *   - 三个主题色相统一在黄色（明亮 95° / 羊皮纸 93° / 夜间 91°），墨色的
+     *     明度各自适配底色 —— 夜间是「深底上逐渐变亮的黄」，而不是把明亮主题
+     *     的浅黄直接搬过去
+     * 文字颜色不跟着变，统一沿用 --text-main；58% 是上限，超过它夜间主题的
+     * 正文对比度会掉到 4.5:1 以下（实测 58% 仍有 5.06:1，62% 只剩 4.59:1，
+     * 66% 破线）。
+     */
+    --level-1-bg: color-mix(in oklab, var(--level-ink) 10%, var(--bg-main));
+    --level-2-bg: color-mix(in oklab, var(--level-ink) 22%, var(--bg-main));
+    --level-3-bg: color-mix(in oklab, var(--level-ink) 34%, var(--bg-main));
+    --level-4-bg: color-mix(in oklab, var(--level-ink) 46%, var(--bg-main));
+    --level-5-bg: color-mix(in oklab, var(--level-ink) 58%, var(--bg-main));
+
+    /*
+     * 按下（:active）时的底色，同样由主题变量推导：明亮与羊皮纸主题下比
+     * --bg-hover 深一档，夜间主题下比它亮一档，无需逐主题写死。分段控件用它
+     * 做按下反馈，因为 hover 在触屏上根本不触发。
+     */
+    --bg-active: color-mix(in oklab, var(--text-strong) 18%, var(--bg-main));
+  }
+
   :root,
   [data-theme="light"] {
     color-scheme: light;
@@ -61,6 +95,11 @@
     --highlight-border: #b45309;
     --success: #15803d;
     --danger: #b91c1c;
+    /*
+     * 熟练度色阶的墨色 —— 黄色。它和 --highlight-* 的琥珀色是两套语义（一个是
+     * 「这个词在第几级」，一个是告警面板 / 生词按钮），曾经取值相同，不要再绑回去。
+     */
+    --level-ink: #a68a00;
   }
 
   [data-theme="sepia"] {
@@ -82,6 +121,7 @@
     --highlight-border: #9a5b06;
     --success: #1c6b3b;
     --danger: #a11f1f;
+    --level-ink: #8f7500;
   }
 
   [data-theme="dark"] {
@@ -103,6 +143,7 @@
     --highlight-border: #e0a92a;
     --success: #6ee7a0;
     --danger: #ff8f8f;
+    --level-ink: #d6ac00;
   }
 
   /* Sharpen the whole interface: no rounded corners anywhere. */
@@ -124,6 +165,15 @@
       Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /*
+   * Tailwind v4 的 preflight 不再给 button 设 cursor: pointer（v3 还有），
+   * 于是全站按钮都是箭头光标。分段控件里最刺眼：没有边框的格子看不出能点。
+   * 这里统一补回，禁用态保留默认光标。
+   */
+  :where(button, [role="button"]):not(:disabled) {
+    cursor: pointer;
   }
 
   /* Keyboard focus stays visible and never shifts the layout. */

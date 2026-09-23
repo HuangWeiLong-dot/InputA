@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { WordStatus } from '../types/reader';
+import type { WordLevel, WordStatus } from '../types/reader';
+import { normalizeWordMap } from '../utils/wordLevel';
 
 const STORAGE_KEY = 'language_reader_vocabulary';
 
@@ -9,24 +10,40 @@ interface VocabularyStorageData {
 
 interface VocabularyState {
   words: Record<string, WordStatus>;
-  
+
   // Actions
-  markLearning: (word: string) => void;
-  markKnown: (word: string) => void;
+  /** 手动指定熟练度（释义面板的 5 段选择器）。 */
+  setWordLevel: (word: string, level: WordLevel) => void;
+  /**
+   * 正文里点击一个词：只在尚未收录时记为 5 级「生词」。
+   * 已经有状态的词（1-5 级或已掌握）原样保留 —— 与翻页同一条「用户的判断优先」。
+   * 想改回 5 级要用「标为生词」按钮，那才是明确的意图。
+   */
+  markAsNewWord: (word: string) => void;
+  /** 记为「掌握」：正文不再高亮。 */
+  markMastered: (word: string) => void;
   removeWord: (word: string) => void;
-  markPageWordsAsKnown: (pageWords: string[]) => number; // returns count of newly marked known words
+  /**
+   * 翻页时把本页没被点击的词记为「掌握」，返回新增的条数。
+   * 已经收录的词（1-5 级或已掌握）不会被覆盖。
+   */
+  markPageWordsAsMastered: (pageWords: string[]) => number;
   getWordStatus: (word: string) => WordStatus | 'unknown';
   clearVocabulary: () => void;
-  importVocabulary: (data: Record<string, WordStatus>) => void;
+  importVocabulary: (data: unknown) => void;
 }
 
-// Helper to safely load from localStorage
+const normalizeWord = (word: string): string => word.trim().toLowerCase();
+
+// Helper to safely load from localStorage. Values written by older versions
+// ('learning' / 'known') are migrated here, so the rest of the app only ever
+// sees level numbers and 'mastered'.
 const loadInitialWords = (): Record<string, WordStatus> => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as VocabularyStorageData;
-    return parsed?.words || {};
+    return normalizeWordMap(parsed?.words);
   } catch (err) {
     console.warn('Failed to load vocabulary from localStorage:', err);
     return {};
@@ -46,36 +63,44 @@ const persistWords = (words: Record<string, WordStatus>) => {
 export const useVocabularyStore = create<VocabularyState>((set, get) => ({
   words: loadInitialWords(),
 
-  markLearning: (word: string) => {
-    const clean = word.trim().toLowerCase();
+  setWordLevel: (word: string, level: WordLevel) => {
+    const clean = normalizeWord(word);
     if (!clean) return;
-
+    // A single status update, shared by every mutation below.
     set((state) => {
-      const nextWords = {
-        ...state.words,
-        [clean]: 'learning' as WordStatus,
-      };
+      const nextWords = { ...state.words, [clean]: level as WordStatus };
       persistWords(nextWords);
       return { words: nextWords };
     });
   },
 
-  markKnown: (word: string) => {
-    const clean = word.trim().toLowerCase();
+  markAsNewWord: (word: string) => {
+    const clean = normalizeWord(word);
+    if (!clean) return;
+    // Already filed - by hand, by a page turn, or by an earlier click. Clicking
+    // is how a word enters the vocabulary, never how it gets rewritten.
+    if (get().words[clean] !== undefined) return;
+
+    set((state) => {
+      const nextWords = { ...state.words, [clean]: 5 as WordStatus };
+      persistWords(nextWords);
+      return { words: nextWords };
+    });
+  },
+
+  markMastered: (word: string) => {
+    const clean = normalizeWord(word);
     if (!clean) return;
 
     set((state) => {
-      const nextWords = {
-        ...state.words,
-        [clean]: 'known' as WordStatus,
-      };
+      const nextWords = { ...state.words, [clean]: 'mastered' as WordStatus };
       persistWords(nextWords);
       return { words: nextWords };
     });
   },
 
   removeWord: (word: string) => {
-    const clean = word.trim().toLowerCase();
+    const clean = normalizeWord(word);
     if (!clean) return;
 
     set((state) => {
@@ -86,26 +111,21 @@ export const useVocabularyStore = create<VocabularyState>((set, get) => ({
     });
   },
 
-  markPageWordsAsKnown: (pageWords: string[]) => {
+  markPageWordsAsMastered: (pageWords: string[]) => {
     const currentWords = get().words;
     const nextWords = { ...currentWords };
     let newlyMarkedCount = 0;
 
     for (const raw of pageWords) {
-      const clean = raw.trim().toLowerCase();
-      // Skip empty or already marked as learning or already known
+      const clean = normalizeWord(raw);
+      // Single letters are noise (articles, initials), not vocabulary.
       if (!clean || clean.length < 2) continue;
-      
-      // If it's already in learning state, do NOT override
-      if (nextWords[clean] === 'learning') {
-        continue;
-      }
+      // Anything already in the map - a level the reader picked by hand, or a
+      // word already mastered - is left alone. Only never-seen words are filed.
+      if (nextWords[clean] !== undefined) continue;
 
-      // If it is unknown (not marked at all)
-      if (!nextWords[clean]) {
-        nextWords[clean] = 'known';
-        newlyMarkedCount++;
-      }
+      nextWords[clean] = 'mastered';
+      newlyMarkedCount++;
     }
 
     if (newlyMarkedCount > 0) {
@@ -117,8 +137,8 @@ export const useVocabularyStore = create<VocabularyState>((set, get) => ({
   },
 
   getWordStatus: (word: string) => {
-    const clean = word.trim().toLowerCase();
-    return get().words[clean] || 'unknown';
+    const clean = normalizeWord(word);
+    return get().words[clean] ?? 'unknown';
   },
 
   clearVocabulary: () => {
@@ -126,8 +146,10 @@ export const useVocabularyStore = create<VocabularyState>((set, get) => ({
     set({ words: {} });
   },
 
-  importVocabulary: (data: Record<string, WordStatus>) => {
-    persistWords(data);
-    set({ words: data });
+  /** Also normalizes: an imported backup from an older version still loads. */
+  importVocabulary: (data: unknown) => {
+    const words = normalizeWordMap(data);
+    persistWords(words);
+    set({ words });
   },
 }));

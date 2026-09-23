@@ -7,6 +7,14 @@ export type DictionarySource =
   | 'wiktionary'
   | 'datamuse';
 
+/**
+ * Part-of-speech sentinel for a definition group whose source did not state one.
+ * Every provider falls back to this instead of guessing, and the UI renders such
+ * a group without a badge - printing the literal word "unknown" told the reader
+ * nothing and looked like a defect.
+ */
+export const UNKNOWN_PART_OF_SPEECH = 'unknown';
+
 export interface DictionaryLookupResult {
   entry: DictionaryEntry | null;
   /** Which provider answered, for a small attribution label in the UI. */
@@ -104,7 +112,10 @@ function parseDictionaryApi(payload: Json, fallbackWord: string): DictionaryEntr
       });
     }
     if (definitions.length > 0) {
-      meanings.push({ partOfSpeech: rawMeaning.partOfSpeech || 'unknown', definitions });
+      meanings.push({
+        partOfSpeech: rawMeaning.partOfSpeech || UNKNOWN_PART_OF_SPEECH,
+        definitions,
+      });
     }
   }
   if (meanings.length === 0) return null;
@@ -155,7 +166,10 @@ function parseWiktionary(payload: Json, fallbackWord: string): DictionaryEntry |
       definitions.push({ definition, example: example || undefined });
     }
     if (definitions.length > 0) {
-      meanings.push({ partOfSpeech: section.partOfSpeech || 'unknown', definitions });
+      meanings.push({
+        partOfSpeech: section.partOfSpeech || UNKNOWN_PART_OF_SPEECH,
+        definitions,
+      });
     }
   }
   if (meanings.length === 0) return null;
@@ -170,7 +184,7 @@ const DATAMUSE_POS_LABELS: Record<string, string> = {
   v: 'verb',
   adj: 'adjective',
   adv: 'adverb',
-  u: 'unknown',
+  u: UNKNOWN_PART_OF_SPEECH,
 };
 
 interface RawDatamuseEntry {
@@ -191,7 +205,8 @@ function parseDatamuse(payload: Json, fallbackWord: string): DictionaryEntry | n
     const abbreviation = fields[0] ?? '';
     const definition = stripMarkup(fields[fields.length - 1] ?? '');
     if (!definition) continue;
-    const partOfSpeech = DATAMUSE_POS_LABELS[abbreviation] || abbreviation || 'unknown';
+    const partOfSpeech =
+      DATAMUSE_POS_LABELS[abbreviation] || abbreviation || UNKNOWN_PART_OF_SPEECH;
     const list = grouped.get(partOfSpeech);
     if (list) {
       list.push({ definition });
@@ -221,6 +236,16 @@ const ECDICT_DEFINITION_POS: Record<string, string> = {
   r: 'adverb',
 };
 
+/**
+ * 释义行的词性代码。**点号是必需的**：WordNet 的代码一律写作 "n. " / "r. "，
+ * 而释义正文以单个字母单词开头非常常见（"A sack or matters inflated with air…"、
+ * "s indicating the beginning unit in a series"）。把点号写成可选时，正文开头
+ * 那个 "A" 会被当成形容词代码 `a` 吃掉 —— 于是词性标错，且释义的首词凭空消失
+ * （"A sack or…" 变成 "sack or…"）。抽样 ECDICT 约 30% 的释义行属于这种情况，
+ * 所以这里严格要求点号：匹配不上只会让该行归入无词性分组，正文一个字都不会少。
+ */
+const ECDICT_DEFINITION_LINE = /^([a-z])\.\s+(.+)$/i;
+
 interface RawLocalEntry {
   word?: string;
   phonetic?: string | null;
@@ -248,18 +273,19 @@ function parseLocalEcdict(payload: Json, fallbackWord: string): DictionaryEntry 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
 
   // English definitions are one per line, prefixed with a WordNet POS code;
-  // a line without a code lands in "unknown" instead of being mislabelled.
+  // a line without a code keeps its full text and is grouped unlabelled rather
+  // than being mislabelled. See ECDICT_DEFINITION_LINE for why the dot matters.
   const grouped = new Map<string, DefinitionItem[]>();
   for (const line of (raw.definition ?? '').split('\n')) {
     const text = stripMarkup(line);
     if (!text) continue;
 
-    const matched = /^([a-z])(?:\.)?\s+(.+)$/i.exec(text);
+    const matched = ECDICT_DEFINITION_LINE.exec(text);
     const partOfSpeech = ECDICT_DEFINITION_POS[matched?.[1]?.toLowerCase() ?? ''];
     const definition = partOfSpeech ? matched?.[2] ?? '' : text;
     if (!definition) continue;
 
-    const key = partOfSpeech ?? 'unknown';
+    const key = partOfSpeech ?? UNKNOWN_PART_OF_SPEECH;
     const list = grouped.get(key);
     if (list) {
       list.push({ definition });

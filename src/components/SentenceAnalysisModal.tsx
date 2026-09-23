@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Sparkles, Settings, Loader2 } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
 import { getBackendHealth } from '../services/apiBase';
+import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, FIELD } from './ui';
 
 const API_KEY_STORAGE_KEY = 'deepseek_api_key';
 
@@ -21,9 +22,6 @@ async function readErrorMessage(response: Response): Promise<string> {
 
 const SYSTEM_PROMPT =
   '你是一位精通英语教学的语言学导师。请对用户提供的英文长难句进行结构拆解：1. 主干结构（主谓宾/主系表）；2. 从句与修饰成分拆解（定语从句、状语、伴随分词等）；3. 核心词组与搭配；4. 地道中文翻译。语言简明扼要，适合语言学习者。';
-
-const FIELD =
-  'w-full border border-[var(--border-color)] bg-[var(--bg-main)] px-3 py-2 text-sm text-[var(--text-main)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]';
 
 const MOCK_ANALYSIS = (sentence: string) =>
   `【语法结构拆解示例】（填入 DeepSeek API Key 可获得真实模型分析）
@@ -122,43 +120,43 @@ export const SentenceAnalysisModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-overlay-in">
-      <div className="flex max-h-[85vh] w-full max-w-xl flex-col border border-[var(--border-color)] bg-[var(--bg-surface)] animate-panel-in">
+      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col border border-[var(--border-color)] bg-[var(--bg-surface)] animate-panel-in">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--border-color)] p-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-            <h2 className="text-sm font-semibold text-[var(--text-strong)]">AI 长难句语法拆解</h2>
+        <div className="flex items-center justify-between border-b border-[var(--border-color)] px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-5 w-5 text-[var(--accent)]" />
+            <h2 className="text-[16px] font-semibold text-[var(--text-strong)]">AI 长难句语法拆解</h2>
             {apiKey.trim() && (
-              <span className="border border-[var(--accent-border)] bg-[var(--accent-soft)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--accent)]">
+              <span className="border border-[var(--accent-border)] bg-[var(--accent-soft)] px-2 py-1 font-mono text-[11px] text-[var(--accent)]">
                 deepseek-chat
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setShowConfig(!showConfig)}
-              className="flex h-7 w-7 items-center justify-center text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-strong)]"
+              className={BTN_GHOST}
               title="配置 DeepSeek API Key"
               aria-label="配置 API Key"
             >
-              <Settings className="h-3.5 w-3.5" />
+              <Settings className="h-5 w-5" />
             </button>
             <button
               type="button"
               onClick={() => setSentenceAnalysisOpen(false)}
-              className="flex h-7 w-7 items-center justify-center text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-strong)]"
+              className={BTN_GHOST}
               aria-label="关闭"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           </div>
         </div>
 
         {/* API key configuration */}
         {showConfig && (
-          <div className="space-y-2 border-b border-[var(--accent-border)] bg-[var(--accent-soft)] p-4">
-            <p className="text-[11px] font-semibold text-[var(--text-main)]">
+          <div className="space-y-2.5 border-b border-[var(--accent-border)] bg-[var(--accent-soft)] px-5 py-4">
+            <p className="text-[13px] font-semibold text-[var(--text-main)]">
               配置 DeepSeek API Key（保存在本地浏览器，也可在后端设置 DEEPSEEK_API_KEY）
             </p>
             <div className="flex gap-2">
@@ -172,21 +170,21 @@ export const SentenceAnalysisModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleSaveApiKey(apiKey)}
-                className="flex h-9 shrink-0 items-center border border-[var(--text-strong)] bg-[var(--text-strong)] px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--bg-surface)] transition-opacity hover:opacity-85"
+                className={`${BTN_PRIMARY} shrink-0`}
               >
                 保存
               </button>
             </div>
-            <p className="text-[10px] text-[var(--text-muted)]">未配置 Key 时提供结构拆解示例模板。</p>
+            <p className="text-[12px] text-[var(--text-muted)]">未配置 Key 时提供结构拆解示例模板。</p>
           </div>
         )}
 
         {/* Body */}
-        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
           <div>
             <label
               htmlFor="sentence-to-analyze"
-              className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]"
+              className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]"
             >
               待分析句子
             </label>
@@ -204,23 +202,23 @@ export const SentenceAnalysisModal: React.FC = () => {
             type="button"
             onClick={handleAnalyze}
             disabled={isAnalyzing || !inputSentence.trim()}
-            className="flex h-10 w-full items-center justify-center gap-2 border border-[var(--accent)] bg-[var(--accent)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--bg-surface)] transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+            className={`${BTN_ACCENT} w-full`}
           >
             {isAnalyzing ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 <span>正在拆解句子结构…</span>
               </>
             ) : (
               <>
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-4 w-4" />
                 <span>开始拆解语法</span>
               </>
             )}
           </button>
 
           {analysisResult && (
-            <div className="border border-[var(--border-color)] bg-[var(--bg-subtle)] p-4 text-[13px] leading-relaxed whitespace-pre-wrap text-[var(--text-main)]">
+            <div className="border border-[var(--border-color)] bg-[var(--bg-subtle)] p-4 text-[15px] leading-relaxed whitespace-pre-wrap text-[var(--text-main)]">
               {analysisResult}
             </div>
           )}
