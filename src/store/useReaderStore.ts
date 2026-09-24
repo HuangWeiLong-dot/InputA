@@ -7,11 +7,49 @@ const SETTINGS_STORAGE_KEY = 'language_reader_settings';
 
 export type ReaderTheme = 'light' | 'sepia' | 'dark';
 
+/**
+ * 朗读引擎。
+ *   edge    —— 后端代理 Edge TTS（/api/tts），音质最好，需要后端在跑
+ *   custom  —— 用户自己的 TTS 服务地址，约定是「GET 返回可播放的音频字节」
+ *   browser —— 词典音源，退而求其次用浏览器语音合成
+ */
+export type TtsProvider = 'edge' | 'custom' | 'browser';
+
 interface ReaderSettings {
   fontSize: number; // in pixels, e.g. 18
   theme: ReaderTheme;
   lineHeight: number; // e.g. 1.8
+  ttsProvider: TtsProvider;
+  /** Edge 音色名；留空表示按正文语言自动选。 */
+  ttsVoice: string;
+  /** Edge 语速，形如 '+10%'；'default' 为原速。 */
+  ttsRate: string;
+  /** 自定义 TTS 地址模板，支持 {text} 与 {lang} 占位符。 */
+  ttsCustomUrlTemplate: string;
+  /** 仿生阅读：加粗每个词的前 40%，给眼睛一个锚点。 */
+  bionicEnabled: boolean;
+  /** 阅读标尺：指针所在段落保持清晰，其余变暗。 */
+  readingRulerEnabled: boolean;
 }
+
+/**
+ * 新增字段必须在这里给出默认值，并由 loadSettings 逐字段兜底 ——
+ * 老用户 localStorage 里的设置没有这些键。
+ */
+const DEFAULT_SETTINGS: ReaderSettings = {
+  // 20px is the new baseline: comfortable for long-form reading on the wide
+  // screens this app targets. Existing readers keep whatever they set, since
+  // the saved value wins over this default.
+  fontSize: 20,
+  theme: 'sepia',
+  lineHeight: 1.8,
+  ttsProvider: 'edge',
+  ttsVoice: '',
+  ttsRate: 'default',
+  ttsCustomUrlTemplate: '',
+  bionicEnabled: false,
+  readingRulerEnabled: false,
+};
 
 interface ReaderState {
   currentBook: Book | null;
@@ -23,6 +61,12 @@ interface ReaderState {
   fontSize: number;
   theme: ReaderTheme;
   lineHeight: number;
+  ttsProvider: TtsProvider;
+  ttsVoice: string;
+  ttsRate: string;
+  ttsCustomUrlTemplate: string;
+  bionicEnabled: boolean;
+  readingRulerEnabled: boolean;
 
   // Modals / Drawers
   isBookCatalogOpen: boolean;
@@ -30,6 +74,9 @@ interface ReaderState {
   isSettingsOpen: boolean;
   isSentenceAnalysisOpen: boolean;
   selectedSentence: string;
+  /** 单词爆炸面板：列出某一句里所有还没收录的词。 */
+  isWordExplosionOpen: boolean;
+  explosionSentence: string;
 
   // Actions
   setCurrentBook: (book: Book, startChapter?: number, startPage?: number) => void;
@@ -41,9 +88,13 @@ interface ReaderState {
   setFontSize: (size: number) => void;
   setTheme: (theme: ReaderTheme) => void;
   setLineHeight: (lh: number) => void;
+  /** 一次改多个设置项并落盘（TTS、阅读辅助等新增项走这条）。 */
+  updateSettings: (patch: Partial<ReaderSettings>) => void;
   setBookCatalogOpen: (open: boolean) => void;
   setVocabularyOpen: (open: boolean) => void;
+  setSettingsOpen: (open: boolean) => void;
   setSentenceAnalysisOpen: (open: boolean, sentence?: string) => void;
+  setWordExplosionOpen: (open: boolean, sentence?: string) => void;
 }
 
 const loadSavedProgress = (): Record<string, ReadingProgress> => {
@@ -65,17 +116,26 @@ const persistProgress = (progress: ReadingProgress) => {
   }
 };
 
+/**
+ * 与默认值逐字段合并，而不是直接返回解析结果。
+ *
+ * 这里原本把 JSON.parse 的结果原样返回、不做任何校验，于是每一次新增设置项，
+ * 老用户读到的都是 `undefined` —— 一路流进渲染（字号变成 `undefinedpx`）。
+ * 合并之后，旧数据缺哪个键就用默认值补上。
+ */
 const loadSettings = (): ReaderSettings => {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return { ...DEFAULT_SETTINGS, ...(parsed as Partial<ReaderSettings>) };
+      }
+    }
   } catch {
-    // fallback
+    // 读不出来就用默认值。
   }
-  // 20px is the new baseline: comfortable for long-form reading on the wide
-  // screens this app targets. Existing readers keep whatever they set, since
-  // the saved value wins over this default.
-  return { fontSize: 20, theme: 'sepia', lineHeight: 1.8 };
+  return { ...DEFAULT_SETTINGS };
 };
 
 const persistSettings = (settings: ReaderSettings) => {
@@ -89,6 +149,35 @@ const persistSettings = (settings: ReaderSettings) => {
 export const useReaderStore = create<ReaderState>((set, get) => {
   const initialSettings = loadSettings();
 
+  /**
+   * 从当前 state 取全部设置项写盘。每次新增设置项只需改这里，而不必再去
+   * 每个 setter 里补一遍字段 —— 之前正是那种写法让新增项容易漏掉。
+   */
+  const persistCurrentSettings = () => {
+    const {
+      fontSize,
+      theme,
+      lineHeight,
+      ttsProvider,
+      ttsVoice,
+      ttsRate,
+      ttsCustomUrlTemplate,
+      bionicEnabled,
+      readingRulerEnabled,
+    } = get();
+    persistSettings({
+      fontSize,
+      theme,
+      lineHeight,
+      ttsProvider,
+      ttsVoice,
+      ttsRate,
+      ttsCustomUrlTemplate,
+      bionicEnabled,
+      readingRulerEnabled,
+    });
+  };
+
   return {
     currentBook: null,
     currentChapterIndex: 0,
@@ -98,12 +187,20 @@ export const useReaderStore = create<ReaderState>((set, get) => {
     fontSize: initialSettings.fontSize,
     theme: initialSettings.theme,
     lineHeight: initialSettings.lineHeight,
+    ttsProvider: initialSettings.ttsProvider,
+    ttsVoice: initialSettings.ttsVoice,
+    ttsRate: initialSettings.ttsRate,
+    ttsCustomUrlTemplate: initialSettings.ttsCustomUrlTemplate,
+    bionicEnabled: initialSettings.bionicEnabled,
+    readingRulerEnabled: initialSettings.readingRulerEnabled,
 
     isBookCatalogOpen: false,
     isVocabularyOpen: false,
     isSettingsOpen: false,
     isSentenceAnalysisOpen: false,
     selectedSentence: '',
+    isWordExplosionOpen: false,
+    explosionSentence: '',
 
     setCurrentBook: (book: Book, startChapter = 0, startPage = 0) => {
       // Check if progress is saved for this book
@@ -213,23 +310,32 @@ export const useReaderStore = create<ReaderState>((set, get) => {
 
     setFontSize: (fontSize: number) => {
       set({ fontSize });
-      persistSettings({ fontSize, theme: get().theme, lineHeight: get().lineHeight });
+      persistCurrentSettings();
     },
 
     setTheme: (theme: ReaderTheme) => {
       // App.tsx mirrors the theme onto <html data-theme="..."> in one effect.
       set({ theme });
-      persistSettings({ fontSize: get().fontSize, theme, lineHeight: get().lineHeight });
+      persistCurrentSettings();
     },
 
     setLineHeight: (lineHeight: number) => {
       set({ lineHeight });
-      persistSettings({ fontSize: get().fontSize, theme: get().theme, lineHeight });
+      persistCurrentSettings();
+    },
+
+    updateSettings: (patch: Partial<ReaderSettings>) => {
+      set(patch);
+      persistCurrentSettings();
     },
 
     setBookCatalogOpen: (isBookCatalogOpen: boolean) => set({ isBookCatalogOpen }),
     setVocabularyOpen: (isVocabularyOpen: boolean) => set({ isVocabularyOpen }),
+    setSettingsOpen: (isSettingsOpen: boolean) => set({ isSettingsOpen }),
     setSentenceAnalysisOpen: (isSentenceAnalysisOpen: boolean, sentence = '') =>
       set({ isSentenceAnalysisOpen, selectedSentence: sentence }),
+
+    setWordExplosionOpen: (isWordExplosionOpen: boolean, sentence = '') =>
+      set({ isWordExplosionOpen, explosionSentence: sentence }),
   };
 });

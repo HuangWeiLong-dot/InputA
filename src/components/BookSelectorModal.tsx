@@ -4,6 +4,7 @@ import { useReaderStore } from '../store/useReaderStore';
 import { SAMPLE_BOOKS } from '../data/sampleBooks';
 import { searchGutendexBooks, loadBookFromGutendex } from '../services/gutendexApi';
 import type { GutendexBookResult } from '../services/gutendexApi';
+import { detectLanguage } from '../services/languageDetect';
 import type { Book } from '../types/reader';
 import { BTN_GHOST, BTN_PRIMARY, FIELD } from './ui';
 
@@ -69,14 +70,20 @@ export const BookSelectorModal: React.FC = () => {
   };
 
   const handleSaveCustomArticle = () => {
-    if (!customContent.trim()) return;
+    const content = customContent.trim();
+    if (!content) return;
+
+    // 粘贴的正文没有任何书源元数据，所以这里跑一次本地检测 —— 语言标签与朗读
+    // 音色都靠它。置信度低也照存：检测出来的是「最可能」，比没有强。
+    const detected = detectLanguage(content);
 
     const customBook: Book = {
       id: `custom-${Date.now()}`,
       title: customTitle.trim() || '自定义导入',
       author: 'User Imported',
       source: 'custom',
-      chapters: [{ title: 'Section 1', content: customContent.trim() }],
+      language: detected.language,
+      chapters: [{ title: 'Section 1', content }],
     };
 
     setCurrentBook(customBook);

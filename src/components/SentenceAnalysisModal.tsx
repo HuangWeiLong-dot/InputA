@@ -1,27 +1,16 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Settings, Loader2 } from 'lucide-react';
+import { X, Sparkles, Settings, Loader2, Send } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
-import { getBackendHealth } from '../services/apiBase';
-import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, FIELD } from './ui';
+import { getBrowserApiKey, requestChat, saveBrowserApiKey } from '../services/aiService';
+import { chatPrompt, chatSystemPrompt, sentenceAnalysisPrompt } from '../services/aiPrompts';
+import { formatConversationHistory } from '../services/aiPrompts';
+import { RichText } from './RichText';
+import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, FIELD, SECTION_LABEL } from './ui';
 
-const API_KEY_STORAGE_KEY = 'deepseek_api_key';
-
-/** Only used when the local backend is not running (browser calls are CORS blocked). */
-const DEEPSEEK_DIRECT_ENDPOINT = 'https://api.deepseek.com/chat/completions';
-
-/** Pull the `error` field out of an error response for a useful message. */
-async function readErrorMessage(response: Response): Promise<string> {
-  try {
-    const data = (await response.json()) as { error?: unknown };
-    if (typeof data?.error === 'string') return data.error;
-  } catch {
-    // The body was not JSON; fall back to the status code only.
-  }
-  return '';
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
-
-const SYSTEM_PROMPT =
-  '你是一位精通英语教学的语言学导师。请对用户提供的英文长难句进行结构拆解：1. 主干结构（主谓宾/主系表）；2. 从句与修饰成分拆解（定语从句、状语、伴随分词等）；3. 核心词组与搭配；4. 地道中文翻译。语言简明扼要，适合语言学习者。';
 
 const MOCK_ANALYSIS = (sentence: string) =>
   `【语法结构拆解示例】（填入 DeepSeek API Key 可获得真实模型分析）
@@ -46,9 +35,17 @@ export const SentenceAnalysisModal: React.FC = () => {
 
   const [inputSentence, setInputSentence] = useState(selectedSentence);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE_KEY) || '');
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  /** 结果是内置示例时不允许追问 —— 没有真模型在另一端。 */
+  const [isMock, setIsMock] = useState(false);
+  const [apiKey, setApiKey] = useState(() => getBrowserApiKey());
   const [showConfig, setShowConfig] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatting, setIsChatting] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   // NOTE: this component is mounted with key={selectedSentence} by App.tsx, so
   // picking a new sentence from the reader resets the local state automatically
@@ -58,7 +55,7 @@ export const SentenceAnalysisModal: React.FC = () => {
 
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
-    localStorage.setItem(API_KEY_STORAGE_KEY, key);
+    saveBrowserApiKey(key);
     setShowConfig(false);
   };
 
@@ -68,53 +65,58 @@ export const SentenceAnalysisModal: React.FC = () => {
 
     setIsAnalyzing(true);
     setAnalysisResult(null);
-
-    const browserKey = apiKey.trim();
-    const backend = await getBackendHealth();
-    // The backend can hold the key itself (DEEPSEEK_API_KEY), so a browser-side
-    // key is optional while it is running.
-    const endpoint = backend.ok ? '/api/ai/chat' : DEEPSEEK_DIRECT_ENDPOINT;
-
-    if (!browserKey && !backend.ok) {
-      window.setTimeout(() => {
-        setAnalysisResult(MOCK_ANALYSIS(textToAnalyze));
-        setIsAnalyzing(false);
-      }, 400);
-      return;
-    }
+    setAnalysisError(null);
+    setChatMessages([]);
+    setChatError(null);
 
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(browserKey ? { Authorization: `Bearer ${browserKey}` } : {}),
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: textToAnalyze },
-          ],
-          stream: false,
-        }),
-      });
+      // The backend can hold the key itself (DEEPSEEK_API_KEY), so a browser-side
+      // key is optional while it is running. The mock only appears when neither
+      // is available — see requestChat.
+      const result = await requestChat(
+        [{ role: 'user', content: sentenceAnalysisPrompt(textToAnalyze) }],
+        MOCK_ANALYSIS(textToAnalyze),
+      );
 
-      if (!response.ok) {
-        const detail = await readErrorMessage(response);
-        throw new Error(`HTTP ${response.status}${detail ? ` · ${detail}` : ''}`);
+      if (result.ok) {
+        setAnalysisResult(result.content);
+        setIsMock(result.mocked);
+      } else {
+        setAnalysisError(`${result.message}\n\n${result.hint}`);
+        setIsMock(false);
       }
-
-      const data = await response.json();
-      setAnalysisResult(data.choices?.[0]?.message?.content || '模型未返回有效分析结果。');
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : '未知错误';
-      const hint = browserKey
-        ? '请检查 API Key 与网络后重试。'
-        : '后端未配置 DEEPSEEK_API_KEY，且未在浏览器中填入 Key。';
-      setAnalysisResult(`调用 DeepSeek 失败：${reason}\n\n${hint}`);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleChat = async () => {
+    const question = chatInput.trim();
+    if (!question || isChatting || !analysisResult) return;
+
+    const nextMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: question }];
+    setChatMessages(nextMessages);
+    setChatInput('');
+    setChatError(null);
+    setIsChatting(true);
+
+    try {
+      // The history is woven into the prompt itself (that is what chatPrompt is
+      // for), so it is deliberately not also replayed as separate messages —
+      // that would send every turn twice.
+      const history = formatConversationHistory(nextMessages.slice(0, -1));
+      const result = await requestChat([
+        { role: 'system', content: chatSystemPrompt(inputSentence.trim()) },
+        { role: 'user', content: chatPrompt(inputSentence.trim(), history, question) },
+      ]);
+
+      if (result.ok) {
+        setChatMessages([...nextMessages, { role: 'assistant', content: result.content }]);
+      } else {
+        setChatError(`${result.message}\n\n${result.hint}`);
+      }
+    } finally {
+      setIsChatting(false);
     }
   };
 
@@ -217,9 +219,89 @@ export const SentenceAnalysisModal: React.FC = () => {
             )}
           </button>
 
+          {/*
+            A failure gets the amber "attention" treatment rather than the same
+            neutral box the result uses: both used to land in one string slot, so
+            a misconfigured key looked exactly like a successful analysis.
+          */}
+          {analysisError && (
+            <div className="border border-[var(--highlight-border)] bg-[var(--highlight-bg)] p-4 text-[14px] leading-relaxed whitespace-pre-wrap text-[var(--highlight-text)]">
+              {analysisError}
+            </div>
+          )}
+
           {analysisResult && (
-            <div className="border border-[var(--border-color)] bg-[var(--bg-subtle)] p-4 text-[15px] leading-relaxed whitespace-pre-wrap text-[var(--text-main)]">
-              {analysisResult}
+            <div className="border border-[var(--border-color)] bg-[var(--bg-subtle)] p-4 text-[15px] leading-relaxed text-[var(--text-main)]">
+              {isMock && (
+                <p className="mb-2.5 border-b border-[var(--border-color)] pb-2 text-[12px] font-semibold text-[var(--highlight-text)]">
+                  这是内置示例，不是模型输出。填入 DeepSeek API Key 或启动后端可获得真实分析。
+                </p>
+              )}
+              <RichText text={analysisResult} className="whitespace-pre-wrap" />
+            </div>
+          )}
+
+          {/* Follow-up conversation, only once there is a real analysis. */}
+          {analysisResult && !isMock && (
+            <div className="space-y-3 border-t border-[var(--border-color)] pt-4">
+              <span className={SECTION_LABEL}>继续追问</span>
+
+              {chatMessages.map((message, index) => (
+                <div
+                  key={index}
+                  className={
+                    message.role === 'user'
+                      ? 'border-l-2 border-[var(--accent-border)] pl-3'
+                      : 'border-l-2 border-[var(--border-color)] pl-3'
+                  }
+                >
+                  <p className="text-[12px] font-semibold text-[var(--text-muted)]">
+                    {message.role === 'user' ? '你' : 'AI'}
+                  </p>
+                  <RichText
+                    text={message.content}
+                    className="mt-0.5 block text-[14px] leading-relaxed whitespace-pre-wrap text-[var(--text-main)]"
+                  />
+                </div>
+              ))}
+
+              {isChatting && (
+                <p className="flex items-center gap-2 text-[13px] text-[var(--text-muted)]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  正在思考…
+                </p>
+              )}
+
+              {chatError && (
+                <p className="border-l-2 border-[var(--highlight-border)] pl-3 text-[13px] leading-relaxed whitespace-pre-wrap text-[var(--highlight-text)]">
+                  {chatError}
+                </p>
+              )}
+
+              <div className="flex items-start gap-2">
+                <textarea
+                  rows={2}
+                  value={chatInput}
+                  onChange={(event) => setChatInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      void handleChat();
+                    }
+                  }}
+                  placeholder="就这个句子继续提问…"
+                  className={`${FIELD} text-[14px] leading-relaxed`}
+                />
+                <button
+                  type="button"
+                  onClick={handleChat}
+                  disabled={isChatting || !chatInput.trim()}
+                  className={`${BTN_ACCENT} h-11 shrink-0`}
+                  title="发送（Ctrl/⌘ + Enter）"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -227,4 +309,3 @@ export const SentenceAnalysisModal: React.FC = () => {
     </div>
   );
 };
-

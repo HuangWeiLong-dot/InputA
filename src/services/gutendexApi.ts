@@ -7,6 +7,11 @@ export interface GutendexBookResult {
   authors: Array<{ name: string }>;
   formats: Record<string, string>;
   download_count: number;
+  /**
+   * 书源自己声明的语言（如 ['en']）。Gutendex 一直在返回它，只是过去没接。
+   * 它比本地检测可靠，所以优先用作 Book.language。
+   */
+  languages?: string[];
 }
 
 export interface GutendexSearchResponse {
@@ -57,9 +62,11 @@ export async function searchGutendexBooks(query: string): Promise<GutendexBookRe
   const trimmed = query.trim();
   if (!trimmed) return [];
 
+  // 不再把 languages=en 写死在 URL 里：多语言支持的目标是「检测与适配」，而
+  // 写死这个参数等于连非英文书都搜不出来。语言交给结果自己声明（languages 字段）。
   const url = (await hasBackend())
     ? `/api/books/search?query=${encodeURIComponent(trimmed)}`
-    : `https://gutendex.com/books?search=${encodeURIComponent(trimmed)}&languages=en`;
+    : `https://gutendex.com/books?search=${encodeURIComponent(trimmed)}`;
 
   const res = await fetchWithTimeout(url, SEARCH_TIMEOUT_MS);
   if (!res.ok) {
@@ -266,6 +273,8 @@ export async function loadBookFromGutendex(item: GutendexBookResult): Promise<Bo
         coverUrl: item.formats?.['image/jpeg'],
         chapters,
         source: 'gutenberg',
+        // 书源元数据优先；缺失时由导入方对正文跑一次检测。
+        language: item.languages?.[0],
       };
     } catch (error) {
       failures.push(error instanceof Error ? error.message : '下载失败');

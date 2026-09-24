@@ -1,9 +1,22 @@
-import React, { useMemo, useState } from 'react';
-import { X, Search, Volume2, Check, Trash2, BookMarked, Download, RotateCcw } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  X,
+  Search,
+  Volume2,
+  Check,
+  Trash2,
+  BookMarked,
+  Download,
+  Upload,
+  RotateCcw,
+} from 'lucide-react';
 import { useVocabularyStore } from '../store/useVocabularyStore';
+import { useAnnotationStore } from '../store/useAnnotationStore';
 import { useReaderStore } from '../store/useReaderStore';
-import { speakWord } from '../services/speechService';
+import { speakWord } from '../services/ttsService';
 import { WORD_LEVEL_BG, WORD_LEVEL_LABELS, isLevel, levelLabel } from '../utils/wordLevel';
+import { buildBackup, isEmptyBackup, parseBackup } from '../utils/backup';
+import type { BackupData } from '../utils/backup';
 import {
   BADGE,
   BTN_GHOST,
@@ -23,7 +36,12 @@ type FilterType = 'all' | 'active' | 'mastered';
 export const VocabularyModal: React.FC = () => {
   const isVocabularyOpen = useReaderStore((state) => state.isVocabularyOpen);
   const setVocabularyOpen = useReaderStore((state) => state.setVocabularyOpen);
-  const { words, setWordLevel, markMastered, removeWord, clearVocabulary } = useVocabularyStore();
+  const { words, setWordLevel, markMastered, removeWord, clearVocabulary, importVocabulary } =
+    useVocabularyStore();
+  const { notes, sentences, importAnnotations, clearAnnotations, removeWordAnnotations } =
+    useAnnotationStore();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [filterType, setFilterType] = useState<FilterType>('active');
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,7 +67,8 @@ export const VocabularyModal: React.FC = () => {
   if (!isVocabularyOpen) return null;
 
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(words, null, 2));
+    const payload = buildBackup({ words, notes, sentences }, new Date().toISOString());
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
     downloadAnchor.setAttribute('download', `vocabulary_${Date.now()}.json`);
@@ -58,10 +77,65 @@ export const VocabularyModal: React.FC = () => {
     downloadAnchor.remove();
   };
 
-  const handleClear = () => {
-    if (window.confirm('确定要清空整本词汇库吗？所有熟练度与掌握记录都会丢失，此操作无法撤销。')) {
-      clearVocabulary();
+  /**
+   * 导入是**替换**而不是合并（两个 store 的 import 动作都是替换语义），
+   * 所以先说清楚，别让用户以为是在追加。
+   */
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // 先清空 value，否则连续选同一个文件不会再次触发 change。
+    event.target.value = '';
+    if (!file) return;
+
+    let parsed: BackupData | null;
+    try {
+      parsed = parseBackup(JSON.parse(await file.text()));
+    } catch {
+      window.alert('这个文件不是有效的 JSON，无法导入。');
+      return;
     }
+
+    if (!parsed) {
+      window.alert('这个文件的结构不是本应用导出的词汇备份。');
+      return;
+    }
+
+    // 空备份等于「清空词库」。真到那一步用户会用「清空词库」按钮，
+    // 所以这里更可能是选错了文件 —— 拒绝比默默抹掉数据安全。
+    if (isEmptyBackup(parsed)) {
+      window.alert('这个备份里没有任何数据，已取消导入（避免误清空现有词汇库）。');
+      return;
+    }
+
+    const wordCount = Object.keys(parsed.words).length;
+    const noteCount = Object.keys(parsed.notes).length;
+    const sentenceCount = Object.keys(parsed.sentences).length;
+    const confirmed = window.confirm(
+      `导入会**替换**当前的词汇库，不是在现有数据上追加。\n\n` +
+        `文件内容：${wordCount} 个单词、${noteCount} 条词笔记、${sentenceCount} 条例句。\n\n` +
+        `继续导入吗？`,
+    );
+    if (!confirmed) return;
+
+    importVocabulary(parsed.words);
+    importAnnotations({ notes: parsed.notes, sentences: parsed.sentences });
+  };
+
+  const handleClear = () => {
+    if (
+      window.confirm(
+        '确定要清空整本词汇库吗？所有熟练度、笔记与例句都会丢失，此操作无法撤销。',
+      )
+    ) {
+      clearVocabulary();
+      clearAnnotations();
+    }
+  };
+
+  /** 移出词汇库时连笔记和例句一起清掉，否则会留下永远查不到的孤儿数据。 */
+  const handleRemoveWord = (word: string) => {
+    removeWord(word);
+    removeWordAnnotations(word);
   };
 
   return (
@@ -133,11 +207,32 @@ export const VocabularyModal: React.FC = () => {
                 type="button"
                 onClick={handleExportJSON}
                 className={BTN_SM}
-                title="导出词汇 JSON 备份"
+                title="导出词汇 JSON 备份（含笔记与例句）"
               >
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">导出</span>
               </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className={BTN_SM}
+                title="从 JSON 备份导入（会替换当前词汇库）"
+              >
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">导入</span>
+              </button>
+              {/* Hidden: the button above is the visible trigger. Keeping the
+                  real input in the DOM is what makes a file picker openable
+                  from a click handler. */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleImportFile}
+                className="hidden"
+                aria-hidden="true"
+                tabIndex={-1}
+              />
               <button
                 type="button"
                 onClick={handleClear}
@@ -224,9 +319,9 @@ export const VocabularyModal: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => removeWord(word)}
+                    onClick={() => handleRemoveWord(word)}
                     className={BTN_SM_DANGER_ICON}
-                    title="移出词汇库"
+                    title="移出词汇库（连同该词的笔记与例句）"
                     aria-label={`移出 ${word}`}
                   >
                     <Trash2 className="h-4 w-4" />

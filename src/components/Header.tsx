@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, BookMarked, Sun, Moon, Coffee, Sparkles } from 'lucide-react';
+import { BookOpen, BookMarked, Sun, Moon, Coffee, Sparkles, Settings } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
 import type { ReaderTheme } from '../store/useReaderStore';
 import { useVocabularyStore } from '../store/useVocabularyStore';
@@ -23,6 +23,7 @@ export const Header: React.FC = () => {
     setBookCatalogOpen,
     setVocabularyOpen,
     setSentenceAnalysisOpen,
+    setSettingsOpen,
   } = useReaderStore();
 
   const words = useVocabularyStore((state) => state.words);
@@ -93,6 +94,16 @@ export const Header: React.FC = () => {
             <span className="hidden text-[var(--border-strong)] sm:inline">/</span>
             <span className="hidden font-mono tabular-nums sm:inline">{masteredCount}</span>
             <span className="hidden md:inline">掌握</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className={BTN}
+            title="设置（朗读引擎、阅读辅助）"
+            aria-label="设置"
+          >
+            <Settings className="h-5 w-5 text-[var(--text-muted)]" />
           </button>
 
           {/* Theme switch: the active option is inverted for maximum contrast */}

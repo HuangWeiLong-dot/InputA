@@ -13,10 +13,12 @@ import {
 import type { DictionaryEntry, WordStatus } from '../types/reader';
 import { UNKNOWN_PART_OF_SPEECH } from '../services/dictionaryApi';
 import type { DictionarySource } from '../services/dictionaryApi';
-import { speakWord } from '../services/speechService';
+import { speakWord } from '../services/ttsService';
 import { useVocabularyStore } from '../store/useVocabularyStore';
 import { useReaderStore } from '../store/useReaderStore';
 import { WORD_LEVELS, WORD_LEVEL_BG, WORD_LEVEL_LABELS, isLevel } from '../utils/wordLevel';
+import { NotesSection } from './NotesSection';
+import { ExampleSentencesSection } from './ExampleSentencesSection';
 import {
   BADGE,
   BTN,
@@ -64,7 +66,7 @@ export const DefinitionDrawer: React.FC<DefinitionDrawerProps> = ({
   surroundingSentence,
 }) => {
   const { words, setWordLevel, markMastered, removeWord } = useVocabularyStore();
-  const { setSentenceAnalysisOpen } = useReaderStore();
+  const { setSentenceAnalysisOpen, setWordExplosionOpen } = useReaderStore();
 
   if (!isOpen || !word) return null;
 
@@ -360,6 +362,15 @@ export const DefinitionDrawer: React.FC<DefinitionDrawerProps> = ({
                 </ol>
               </div>
             ))}
+
+          {/*
+            Notes and saved sentences live inside the scrolling body, not in a
+            third shrink-0 band at the bottom: on a phone the drawer is capped at
+            max-h-[86vh], and another fixed band would squeeze this scroll area
+            down to almost nothing.
+          */}
+          <NotesSection word={word} sentence={surroundingSentence} />
+          <ExampleSentencesSection word={word} sentence={surroundingSentence} />
         </div>
 
         {/* Sentence in context */}
@@ -370,13 +381,23 @@ export const DefinitionDrawer: React.FC<DefinitionDrawerProps> = ({
                 <Sparkles className="h-3.5 w-3.5" />
                 当前所在句子
               </span>
-              <button
-                type="button"
-                onClick={() => setSentenceAnalysisOpen(true, surroundingSentence)}
-                className="text-[13px] font-semibold text-[var(--accent)] underline decoration-1 underline-offset-2 hover:no-underline"
-              >
-                AI 拆解语法 →
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setWordExplosionOpen(true, surroundingSentence)}
+                  className="text-[13px] font-semibold text-[var(--accent)] underline decoration-1 underline-offset-2 hover:no-underline"
+                  title="列出这句里所有还没收录的词"
+                >
+                  本句生词 →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSentenceAnalysisOpen(true, surroundingSentence)}
+                  className="text-[13px] font-semibold text-[var(--accent)] underline decoration-1 underline-offset-2 hover:no-underline"
+                >
+                  AI 拆解语法 →
+                </button>
+              </div>
             </div>
             <p className="mt-2 line-clamp-3 font-serif text-[14px] leading-relaxed text-[var(--text-muted)] italic">
               “{surroundingSentence}”

@@ -7,7 +7,37 @@ export interface Token {
 
 // Regex to split text into words and non-words (punctuation, spaces, line breaks)
 // Matches contractions like don't, it's, and hyphenated words like well-known
-const WORD_REGEX = /([a-zA-Z0-9]+(?:['’][a-zA-Z0-9]+)*(?:-[a-zA-Z0-9]+)*)/g;
+//
+// 词元用 Unicode 字母/数字类，而不是 [a-zA-Z0-9]：后者会把 café 切成 `caf` + `é`、
+// 把 über 切成 `ber`，于是非英文书里几乎没有能整词点击的词。`u` 标志是 \p{...} 的前提。
+const WORD_REGEX = /([\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*(?:-[\p{L}\p{N}]+)*)/gu;
+
+/**
+ * 中日韩等无空格文字。
+ *
+ * 它们没有「点一下这个词」的天然边界，真要分词得引入 kuromoji / jieba 这类专门的
+ * 分词库；而更糟的是翻页自动收录规则会把整段中文当成一个「词」塞进词库。所以这里
+ * 不把它们算作可点击的词 —— 与 LingKuma 的 shouldHighlightText 是同一个取舍。
+ */
+const CJK_PATTERN = /[ᄀ-ᇿ぀-ヿ㄰-㆏一-鿿가-힯]/;
+
+/**
+ * 这段文字里有没有中日韩文字。分词器用它决定「算不算一个可点击的词」，
+ * 仿生阅读用它决定「要不要加粗」—— 两处必须用同一套区间，所以只留一份定义。
+ */
+export function containsCjk(text: string): boolean {
+  return CJK_PATTERN.test(text);
+}
+
+/**
+ * 规范化一个词元：去掉首尾的撇号与连字符，然后小写。
+ *
+ * 词库的状态键、字典查询、以及单词爆炸面板挑出来的词都用它，所以这个词元清洗
+ * 只有一份实现 —— 两处不一致会让词查不到自己的状态。
+ */
+export function cleanToken(raw: string): string {
+  return raw.replace(/^['’-]+|['’-]+$/g, '').toLowerCase();
+}
 
 /**
  * Tokenize a paragraph or text block into an array of words and non-words
@@ -38,12 +68,13 @@ export function tokenizeText(text: string, paragraphIndex = 0): Token[] {
     }
 
     // Clean word: strip surrounding hyphens/apostrophes, convert to lowercase
-    const clean = word.replace(/^['’-]+|['’-]+$/g, '').toLowerCase();
+    const clean = cleanToken(word);
 
     tokens.push({
       id: `p${paragraphIndex}-t${tokenCounter++}`,
       raw: word,
-      isWord: clean.length > 0 && /[a-zA-Z]/.test(clean),
+      // 必须含字母（纯数字不算词），且不能是中日韩 —— 见 CJK_PATTERN。
+      isWord: clean.length > 0 && /\p{L}/u.test(clean) && !CJK_PATTERN.test(clean),
       cleanWord: clean,
     });
 

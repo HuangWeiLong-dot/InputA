@@ -47,6 +47,39 @@ describe('Tokenizer Utility', () => {
   });
 });
 
+/**
+ * The word regex used to be [a-zA-Z0-9], which split "café" into "caf" + "é" — so
+ * a French or German book had almost no whole words left to click, and clicking
+ * filed fragments as vocabulary.
+ */
+describe('Tokenizer: words outside ASCII', () => {
+  const wordsIn = (text: string) =>
+    tokenizeText(text)
+      .filter((token) => token.isWord)
+      .map((token) => token.cleanWord);
+
+  it('keeps accented Latin words whole', () => {
+    expect(wordsIn('Le café était naïf.')).toEqual(['le', 'café', 'était', 'naïf']);
+    expect(wordsIn('Über die Brücke.')).toEqual(['über', 'die', 'brücke']);
+  });
+
+  it('keeps other spaced scripts whole too', () => {
+    expect(wordsIn('Привет мир')).toEqual(['привет', 'мир']);
+    expect(wordsIn('Καλημέρα κόσμε')).toEqual(['καλημέρα', 'κόσμε']);
+  });
+
+  /**
+   * CJK has no spaces, so there is no honest place to cut a "word" without a real
+   * segmenter — and the page-turn rule would file whole sentences as vocabulary.
+   * Leaving them unclickable is the deliberate trade-off.
+   */
+  it('does not treat CJK runs as clickable words', () => {
+    expect(wordsIn('hello 你好 world')).toEqual(['hello', 'world']);
+    expect(wordsIn('日本語のテキスト')).toEqual([]);
+    expect(wordsIn('한국어 텍스트')).toEqual([]);
+  });
+});
+
 describe('Vocabulary Store: levels and the page-turn rule', () => {
   beforeEach(() => {
     useVocabularyStore.getState().clearVocabulary();

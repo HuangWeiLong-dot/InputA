@@ -12,7 +12,11 @@
 - 🎚 5 级熟练度色阶，正文里颜色越深表示越不熟
 - ✨ AI 语法拆解：把当前句子交给 DeepSeek 拆结构、讲从句、给翻译
 - 🌗 明亮 / 羊皮纸 / 夜间三套主题，字号 16–30px 可调
-- 💾 词库可搜索、朗读、导出 JSON 备份
+- 📝 单词笔记与例句记录：笔记可手写也可采纳 AI 建议，例句带 AI 译文与出处
+- 💥 本句生词：一次列出当前句里所有还没收录的词，可逐个或一键标记为已掌握
+- 🗣 朗读可选 Edge TTS（后端代理，音色按正文语言自动匹配）、自定义 TTS 服务，或浏览器合成
+- 🔤 仿生阅读与段落聚焦标尺
+- 💾 词库可搜索、朗读、导出 JSON 备份（含笔记与例句；也支持导入，兼容旧版备份）
 
 技术栈：React 19 + TypeScript + Vite + Tailwind CSS v4 + Zustand，另含一个 Node 后端（`server/`，为绕开跨域而生）和一个只读的本地词典（`better-sqlite3` + `data/stardict.db`）。
 
@@ -122,7 +126,8 @@ npm run dev      # 2) Vite → http://localhost:5173（/api 自动转发到后�
 | --- | --- |
 | `language_reader_vocabulary` | 词库：每个词的状态（1–5 级或已掌握） |
 | `language_reader_progress` | 读到哪本书、第几章、第几页 |
-| `language_reader_settings` | 主题、字号、行高 |
+| `language_reader_settings` | 主题、字号、行高、朗读引擎与音色、仿生阅读、段落聚焦 |
+| `language_reader_annotations` | 单词笔记与例句记录 |
 | `deepseek_api_key` | 你在浏览器里填的 DeepSeek Key |
 
 因此：换个浏览器或清掉缓存，词库就空了（**先用词汇库的「导出」备份**）；无痕窗口关掉即消失。
@@ -156,6 +161,9 @@ npm run dev      # 2) Vite → http://localhost:5173（/api 自动转发到后�
 
 以下为开发文档。
 
+> 部分学习功能移植自 [LingKuma](https://github.com/lingkuma/LingKuma)（MIT）——
+> 搬运清单与许可证全文见 [`NOTICE.md`](./NOTICE.md)。
+
 ## 为什么需要后端
 
 浏览器无法直接访问这些上游：
@@ -179,6 +187,8 @@ npm run dev      # 2) Vite → http://localhost:5173（/api 自动转发到后�
 | GET | `/api/dictionary/word/:word` | `api.dictionaryapi.dev` |
 | GET | `/api/dictionary/wiktionary/:word` | `en.wiktionary.org` REST |
 | GET | `/api/dictionary/datamuse/:word` | `api.datamuse.com` |
+| GET | `/api/tts?text=&voice=&rate=&pitch=` | Edge TTS（`speech.platform.bing.com`，WebSocket），返回 `audio/mpeg` |
+| GET | `/api/tts/voices` | Edge TTS 音色列表（进程内缓存一次） |
 | POST | `/api/ai/chat` | `api.deepseek.com/chat/completions` |
 
 上游的**状态码原样透传**（例如查无此词仍是 404），因此前端的降级与缓存逻辑保持有效。
@@ -277,5 +287,5 @@ local-ecdict（GET /api/dict，离线，约 1ms）
 | `npm run server` | 启动 Node 代理后端 |
 | `npm start` | 构建 + 单源生产服务 |
 | `npm run build` | `tsc -b && vite build` |
-| `npm test` | Vitest（离线词典 `server/dictLookup.test.ts`、词典降级链、Gutendex 导入、分词/分页/词汇规则） |
+| `npm test` | Vitest（离线词典与 Edge TTS 协议 `server/*.test.ts`、词典降级链、Gutendex 导入、分词/分页/词汇规则、笔记与例句、备份往返、语言检测、仿生切分） |
 | `npm run lint` | oxlint |

@@ -6,6 +6,7 @@ export const SAMPLE_BOOKS: Book[] = [
     title: "Alice's Adventures in Wonderland",
     author: 'Lewis Carroll',
     source: 'builtin',
+    language: 'en',
     chapters: [
       {
         title: 'CHAPTER I. Down the Rabbit-Hole',
@@ -44,6 +45,7 @@ Just at this moment her head struck against the roof of the hall: in fact she wa
     title: 'Pride and Prejudice',
     author: 'Jane Austen',
     source: 'builtin',
+    language: 'en',
     chapters: [
       {
         title: 'Chapter 1',
@@ -82,6 +84,7 @@ This was invitation enough.
     title: 'The Adventures of Sherlock Holmes',
     author: 'Arthur Conan Doyle',
     source: 'builtin',
+    language: 'en',
     chapters: [
       {
         title: 'A Scandal in Bohemia',

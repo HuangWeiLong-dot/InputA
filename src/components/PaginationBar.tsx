@@ -16,6 +16,7 @@ export const PaginationBar: React.FC = () => {
     isBookCatalogOpen,
     isVocabularyOpen,
     isSentenceAnalysisOpen,
+    isWordExplosionOpen,
   } = useReaderStore();
   const { markPageWordsAsMastered } = useVocabularyStore();
 
@@ -71,7 +72,8 @@ export const PaginationBar: React.FC = () => {
    * while a modal is open or a field has focus, where the keys belong to that
    * widget (the vocabulary search box, the paste-your-own-article textarea).
    */
-  const isAnyModalOpen = isBookCatalogOpen || isVocabularyOpen || isSentenceAnalysisOpen;
+  const isAnyModalOpen =
+    isBookCatalogOpen || isVocabularyOpen || isSentenceAnalysisOpen || isWordExplosionOpen;
 
   useEffect(() => {
     if (isAnyModalOpen) return;

@@ -13,6 +13,8 @@
  * http:// ones) safely, so every cross-origin call lives here.
  */
 
+import { UpstreamError } from './upstreamError.ts';
+
 /**
  * Timeouts stay below the client-side ones (8s for a word, 20s for a search),
  * so the browser receives a real error response instead of aborting itself.
@@ -34,14 +36,7 @@ const BOOK_TEXT_HOSTS = new Set([
   'www.gutenberg.net.au',
 ]);
 
-export class UpstreamError extends Error {
-  /** @param {number} status @param {string} message */
-  constructor(status, message) {
-    super(message);
-    this.name = 'UpstreamError';
-    this.status = status;
-  }
-}
+export { UpstreamError };
 
 /** Guard against SSRF: the text download route accepts only Gutenberg hosts. */
 export function assertBookTextUrl(value) {

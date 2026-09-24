@@ -19,6 +19,7 @@ import {
   lookupWiktionary,
   searchGutendex,
 } from './upstreams.js';
+import { listVoices, synthesize } from './edgeTts.ts';
 // TypeScript module, loaded through Node's built-in type stripping (Node
 // 22.18+/23.6+/24). It keeps the read-only SQLite dictionary behind /api/dict.
 import { isDictionaryAvailable, lookupWord } from './dictLookup.ts';
@@ -54,8 +55,36 @@ const API_ROUTES = [
   'GET  /api/dictionary/word/:word',
   'GET  /api/dictionary/wiktionary/:word',
   'GET  /api/dictionary/datamuse/:word',
+  'GET  /api/tts?text=&voice=&rate=&pitch=',
+  'GET  /api/tts/voices',
   'POST /api/ai/chat',
 ];
+
+/**
+ * Synthesis is a WebSocket round trip and the service rate limits, while the same
+ * word gets replayed constantly during reading. A small LRU pays for itself
+ * immediately. Insertion order doubles as recency, so a hit re-inserts.
+ */
+const TTS_CACHE_LIMIT = 200;
+const ttsCache = new Map();
+/** The catalogue changes rarely; fetch it once per process. */
+let voicesCache = null;
+
+function ttsCacheGet(key) {
+  if (!ttsCache.has(key)) return null;
+  const value = ttsCache.get(key);
+  ttsCache.delete(key);
+  ttsCache.set(key, value);
+  return value;
+}
+
+function ttsCacheSet(key, value) {
+  if (ttsCache.size >= TTS_CACHE_LIMIT) {
+    const oldest = ttsCache.keys().next().value;
+    ttsCache.delete(oldest);
+  }
+  ttsCache.set(key, value);
+}
 
 const FALLBACK_HTML = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>Language Reader API</title>
@@ -108,6 +137,21 @@ function passThrough(res, upstream) {
     'Cache-Control': 'no-store',
   });
   res.end(upstream.body);
+}
+
+/**
+ * Audio is the one response worth letting the browser cache: it is immutable for
+ * a given (text, voice, rate, pitch) and replayed while reading. `hit` in the
+ * header makes the server-side cache observable when testing by hand.
+ */
+function sendAudio(res, buffer, cacheState) {
+  res.writeHead(200, {
+    'Content-Type': 'audio/mpeg',
+    'Content-Length': String(buffer.length),
+    'Cache-Control': 'private, max-age=86400',
+    'X-TTS-Cache': cacheState,
+  });
+  res.end(buffer);
 }
 
 function readJsonBody(req) {
@@ -222,6 +266,46 @@ async function handleApi(req, res, url) {
       return;
     }
     passThrough(res, await DICTIONARY_HANDLERS[kind](word, req.headers['user-agent']));
+    return;
+  }
+
+  if (pathname === '/api/tts') {
+    if (req.method !== 'GET') {
+      sendJson(res, 405, { error: 'use GET' });
+      return;
+    }
+    const text = (url.searchParams.get('text') || '').trim();
+    if (!text) {
+      sendJson(res, 400, { error: 'text parameter is required' });
+      return;
+    }
+
+    const voice = (url.searchParams.get('voice') || '').trim();
+    const rate = (url.searchParams.get('rate') || '').trim();
+    const pitch = (url.searchParams.get('pitch') || '').trim();
+
+    // NUL cannot appear in a URL query value, so it is a safe field separator.
+    const cacheKey = [text, voice, rate, pitch].join('\u0000');
+    const cached = ttsCacheGet(cacheKey);
+    if (cached) {
+      sendAudio(res, cached, 'hit');
+      return;
+    }
+
+    const audio = await synthesize(text, { voice, rate, pitch });
+    ttsCacheSet(cacheKey, audio);
+    sendAudio(res, audio, 'miss');
+    return;
+  }
+
+  if (pathname === '/api/tts/voices') {
+    if (req.method !== 'GET') {
+      sendJson(res, 405, { error: 'use GET' });
+      return;
+    }
+    // Only a success is worth remembering; a failure should be retried.
+    if (!voicesCache) voicesCache = await listVoices();
+    sendJson(res, 200, voicesCache);
     return;
   }
 

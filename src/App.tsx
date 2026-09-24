@@ -14,10 +14,20 @@ import { DefinitionDrawer } from './components/DefinitionDrawer';
 import { BookSelectorModal } from './components/BookSelectorModal';
 import { VocabularyModal } from './components/VocabularyModal';
 import { SentenceAnalysisModal } from './components/SentenceAnalysisModal';
+import { WordExplosionPanel } from './components/WordExplosionPanel';
+import { SettingsModal } from './components/SettingsModal';
 
 export const App: React.FC = () => {
-  const { currentBook, currentChapterIndex, theme, selectedSentence, setPages, setCurrentBook } =
-    useReaderStore();
+  const {
+    currentBook,
+    currentChapterIndex,
+    currentPageIndex,
+    theme,
+    selectedSentence,
+    explosionSentence,
+    setPages,
+    setCurrentBook,
+  } = useReaderStore();
   const { markAsNewWord } = useVocabularyStore();
 
   const [activeWord, setActiveWord] = useState<string | null>(null);
@@ -110,7 +120,13 @@ export const App: React.FC = () => {
         }`}
       >
         <Header />
-        <ReaderArea onSelectWord={handleSelectWord} activeWord={activeWord} />
+        {/* Keyed by position so a page or chapter turn remounts the reader,
+            which resets the reading ruler's paragraph focus without an effect. */}
+        <ReaderArea
+          key={`${currentBook?.id ?? 'none'}-${currentChapterIndex}-${currentPageIndex}`}
+          onSelectWord={handleSelectWord}
+          activeWord={activeWord}
+        />
         <PaginationBar />
       </div>
 
@@ -130,6 +146,10 @@ export const App: React.FC = () => {
 
       <BookSelectorModal />
       <VocabularyModal />
+      {/* keyed like SentenceAnalysisModal: a new sentence remounts and resets
+          the panel's per-sentence state instead of needing a syncing effect. */}
+      <WordExplosionPanel key={explosionSentence} onSelectWord={handleSelectWord} />
+      <SettingsModal />
       <SentenceAnalysisModal key={selectedSentence} />
     </div>
   );

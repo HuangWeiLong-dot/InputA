@@ -11,6 +11,9 @@ lerna-debug.log*
 # 用 /data/ 锚定仓库根目录，避免误伤 src/data/
 /data/
 
+# LingKuma 上游仓库的本地克隆（MIT，仅作移植参照，见 NOTICE.md）；只搬了部分代码，克隆本身不随仓库分发
+/LingKuma/
+
 node_modules
 dist
 dist-ssr
