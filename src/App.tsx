@@ -146,11 +146,20 @@ export const App: React.FC = () => {
 
       <BookSelectorModal />
       <VocabularyModal />
-      {/* keyed like SentenceAnalysisModal: a new sentence remounts and resets
-          the panel's per-sentence state instead of needing a syncing effect. */}
-      <WordExplosionPanel key={explosionSentence} onSelectWord={handleSelectWord} />
+      {/*
+        keyed like SentenceAnalysisModal: a new sentence remounts and resets the
+        panel's per-sentence state instead of needing a syncing effect.
+
+        The prefixes are not decoration. With the raw sentence as the key the two
+        panels collide whenever they hold the same string — always, in fact, on a
+        fresh load (both default to ''), and again for real whenever the drawer's
+        「本句生词」and 「AI 拆解语法」are opened on the same sentence, since both
+        buttons pass the same `surroundingSentence`. React then sees two children
+        with one key and is free to duplicate or drop either.
+      */}
+      <WordExplosionPanel key={`explosion:${explosionSentence}`} onSelectWord={handleSelectWord} />
       <SettingsModal />
-      <SentenceAnalysisModal key={selectedSentence} />
+      <SentenceAnalysisModal key={`analysis:${selectedSentence}`} />
     </div>
   );
 };
