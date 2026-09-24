@@ -9,6 +9,12 @@ import type { WordLevel, WordStatus } from '../types/reader';
  *   - 释义面板里的 5 段选择器可以手动指定任意一级
  *   - 状态只由用户改写：点击与翻页都不会覆盖已有状态（1-5 级或已掌握），
  *     要改回 5 级请用「标为生词」按钮 —— 用户的判断优先
+ *
+ * 另有一条**只关于显示**的规则：没收录过的词在正文里按 5 级「生词」着色
+ * （见 highlightLevel）。它不写词库、不改变上面任何一条 —— 未收录的词翻页后
+ * 照样被记为「掌握」、高亮照样消失。别把它"顺手"改成真写入：那样会让点击
+ * 永远进不了「用户判断过」的名单（markAsNewWord 早退在写入之前），翻页随即
+ * 清掉读者刚点过的词；词库也会从几百条涨到几万条。
  */
 
 /** 由浅至深，1 = 最浅。 */
@@ -45,11 +51,39 @@ export function levelLabel(level: WordLevel): string {
 }
 
 /**
- * 是否为熟练度等级（1-5）。'mastered' 与 'unknown' 都返回 false，
- * 两者在正文里的表现相同（不高亮），但含义不同：前者是已掌握，后者是没收录。
+ * 是否为熟练度等级（1-5）。'mastered' 与 'unknown' 都返回 false，但含义不同：
+ * 前者是已掌握，后者是没收录。**注意它只回答"状态是什么"，不回答"该用什么颜色"**
+ * —— 未收录的词要按 5 级着色，那是 highlightLevel 的事。
  */
 export function isLevel(status: WordStatus | 'unknown'): status is WordLevel {
   return typeof status === 'number';
+}
+
+/**
+ * 是否从未收录。与 isLevel 对称，也是给调用点用的：`'unknown'` 不是词库里的
+ * 一个值，而是「这个词没有任何状态」的哨兵。
+ *
+ * 之所以是普通谓词而不是 `status is 'unknown'`：调用点往往已经把它和
+ * 'mastered' 分开处理了（那片分支里没有可收窄的东西）。另外，直接在 JSX 里写
+ * `status === 'unknown'` 过不了 tsc —— 见 ReaderArea 里那段注释。
+ */
+export function isUnknown(status: WordStatus | 'unknown'): boolean {
+  return status === 'unknown';
+}
+
+/**
+ * 正文里该用哪一档底色。
+ *
+ * 未收录（'unknown'）按 5「生词」着色：读者一眼就能看到这一页还有哪些词没处理过。
+ * 它和真正标为 5 级的词看起来一样，但词库里没有任何记录；'mastered' 返回 null，
+ * 与今天一样彻底不高亮。
+ *
+ * 之所以单独成一个函数而不是写在 JSX 的三元里：本仓库的测试跑在纯 node 环境、
+ * 没有 jsdom，逻辑落在 utils 里才有单测可言（同 bionic.ts / tokenizer.ts）。
+ */
+export function highlightLevel(status: WordStatus | 'unknown'): WordLevel | null {
+  if (status === 'unknown') return 5;
+  return isLevel(status) ? status : null;
 }
 
 /**

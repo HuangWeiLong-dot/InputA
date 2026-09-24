@@ -4,7 +4,7 @@ import { useVocabularyStore } from '../store/useVocabularyStore';
 import { tokenizeText, type Token } from '../utils/tokenizer';
 import { bionicSplit, isBionicEligible } from '../utils/bionic';
 import type { WordStatus } from '../types/reader';
-import { WORD_LEVEL_BG, WORD_LEVEL_LABELS, isLevel } from '../utils/wordLevel';
+import { WORD_LEVEL_BG, WORD_LEVEL_LABELS, highlightLevel, isLevel, isUnknown } from '../utils/wordLevel';
 
 interface ReaderAreaProps {
   onSelectWord: (word: string, surroundingSentence: string) => void;
@@ -15,8 +15,10 @@ interface ReaderAreaProps {
  * Word styling.
  *
  * A collected word is painted with its proficiency colour (1 lightest → 5
- * deepest); a mastered word and a word never collected both render as plain
- * text, so the page calms down as the reader learns.
+ * deepest), and a word never collected is painted with the deepest colour too
+ * — the reader should see at a glance what is still unprocessed rather than
+ * have to click around to find out (see highlightLevel). Only a mastered word
+ * renders as plain text, so the page calms down as the reader works through it.
  *
  * The background rules below are mutually exclusive on purpose: each word gets
  * exactly one of the level tint or WORD_IDLE, and the active marker only adds a
@@ -188,20 +190,28 @@ export const ReaderArea: React.FC<ReaderAreaProps> = ({ onSelectWord, activeWord
 
                 const status: WordStatus | 'unknown' =
                   wordsState[token.cleanWord] ?? 'unknown';
+                // Two different questions, deliberately kept apart: `level` is
+                // what the word actually IS (only the tooltip may say it), while
+                // `tint` is what it should LOOK like — an uncollected word is
+                // painted as 生词 without being filed as one.
                 const level = isLevel(status) ? status : null;
+                const tint = highlightLevel(status);
                 const isActive = activeWord?.toLowerCase() === token.cleanWord;
 
                 let className = `${WORD_BASE} `;
-                className += level ? `${WORD_LEVEL_BG[level]} ` : `${WORD_IDLE} `;
+                className += tint ? `${WORD_LEVEL_BG[tint]} ` : `${WORD_IDLE} `;
                 if (isActive) {
-                  className += level ? `${WORD_ACTIVE_OUTLINE} ` : `${WORD_ACTIVE} `;
+                  className += tint ? `${WORD_ACTIVE_OUTLINE} ` : `${WORD_ACTIVE} `;
                 }
 
-                const tooltip = level
-                  ? `熟练度 ${level} · ${WORD_LEVEL_LABELS[level]}：${token.cleanWord}（点击查看释义）`
-                  : status === 'mastered'
-                    ? `已掌握：${token.cleanWord}（点击查看释义）`
-                    : `点击查词：${token.cleanWord}`;
+                // `isUnknown` rather than `status === 'unknown'`: the index
+                // signature says every key exists, so TS narrows `status` to
+                // WordStatus and rejects the comparison as impossible (TS2367).
+                const tooltip = isUnknown(status)
+                  ? `未收录：${token.cleanWord}（点击查词）`
+                  : level
+                    ? `熟练度 ${level} · ${WORD_LEVEL_LABELS[level]}：${token.cleanWord}（点击查看释义）`
+                    : `已掌握：${token.cleanWord}（点击查看释义）`;
 
                 return (
                   <span

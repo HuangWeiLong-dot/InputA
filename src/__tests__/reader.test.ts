@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { tokenizeText, extractWordsFromTokens, paginateText } from '../utils/tokenizer';
 import { useVocabularyStore } from '../store/useVocabularyStore';
-import { normalizeWordStatus } from '../utils/wordLevel';
+import { normalizeWordStatus, highlightLevel } from '../utils/wordLevel';
 
 describe('Tokenizer Utility', () => {
   it('correctly splits text into words, punctuation, and contractions', () => {
@@ -211,5 +211,32 @@ describe('Word status migration', () => {
     const { useVocabularyStore: freshStore } = await import('../store/useVocabularyStore');
 
     expect(freshStore.getState().words).toEqual({ good: 2 });
+  });
+});
+
+/**
+ * What the text paints, as opposed to what the store records. An uncollected
+ * word is painted like 生词 but is not filed as one — it is still 'unknown' to
+ * every other consumer, so the page-turn rule keeps working on it.
+ */
+describe('Highlight level', () => {
+  it('paints a word that was never collected as 生词', () => {
+    expect(highlightLevel('unknown')).toBe(5);
+  });
+
+  it('paints a collected word with the level it was given', () => {
+    expect(highlightLevel(1)).toBe(1);
+    expect(highlightLevel(3)).toBe(3);
+    expect(highlightLevel(5)).toBe(5);
+  });
+
+  it('leaves a mastered word unhighlighted', () => {
+    expect(highlightLevel('mastered')).toBeNull();
+  });
+
+  it('does not file anything — the word stays uncollected to every other reader', () => {
+    const before = { ...useVocabularyStore.getState().words };
+    highlightLevel('unknown');
+    expect(useVocabularyStore.getState().words).toEqual(before);
   });
 });
