@@ -60,12 +60,19 @@ jobs:
       # Check the configuration before anything tries to use it. Without this the
       # first failure is ssh-keyscan on an empty hostname, which does not say
       # which secret is missing.
+      #
+      # SSH_KEY is deliberately *not* in the job-level env — only the two steps
+      # that need it get it — so its check lives in the next step. Listing it here
+      # as well would be a trap: `${!name}` reads a shell variable, and one that
+      # was never placed in the environment reads as empty, so the guard would
+      # report SSH_KEY missing no matter what the repository actually holds. (It
+      # did exactly that.)
       - name: Check the deploy secrets
         run: |
           missing=0
-          for name in SSH_HOST SSH_USER SSH_KEY; do
+          for name in SSH_HOST SSH_USER; do
             if [[ -z "${!name}" ]]; then
-              echo "::error::secret $name is not set (Settings → Secrets and variables → Actions)"
+              echo "::error::secret $name is not set — check Settings → Secrets and variables → Actions → the Secrets tab"
               missing=1
             fi
           done
@@ -73,12 +80,18 @@ jobs:
           echo "SSH_HOST=$SSH_HOST SSH_USER=$SSH_USER SSH_PORT=$SSH_PORT"
 
       - name: Install the deploy key
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
+          if [[ -z "$SSH_KEY" ]]; then
+            echo "::error::secret SSH_KEY is empty — either it is not set, or it was added on the Variables tab instead of the Secrets tab"
+            exit 1
+          fi
           mkdir -p "$HOME/.ssh"
           # tr -d '\r': a secret pasted from a Windows clipboard keeps its CRLF
           # line endings, and ssh rejects such a key with a message that does not
           # mention line endings at all.
-          printf '%s\n' "${{ secrets.SSH_KEY }}" | tr -d '\r' > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$HOME/.ssh/deploy_key"
           chmod 600 "$HOME/.ssh/deploy_key"
           # Pin the host key instead of trusting whatever answers. If the scan
           # finds nothing, known_hosts stays empty and StrictHostKeyChecking=yes
