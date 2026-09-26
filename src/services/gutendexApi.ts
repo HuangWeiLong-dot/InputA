@@ -1,5 +1,5 @@
 import type { Book, BookChapter } from '../types/reader';
-import { hasBackend } from './apiBase';
+import { apiUrl, hasBackend, isBackendUrl } from './apiBase';
 
 export interface GutendexBookResult {
   id: number;
@@ -65,7 +65,7 @@ export async function searchGutendexBooks(query: string): Promise<GutendexBookRe
   // 不再把 languages=en 写死在 URL 里：多语言支持的目标是「检测与适配」，而
   // 写死这个参数等于连非英文书都搜不出来。语言交给结果自己声明（languages 字段）。
   const url = (await hasBackend())
-    ? `/api/books/search?query=${encodeURIComponent(trimmed)}`
+    ? apiUrl(`/api/books/search?query=${encodeURIComponent(trimmed)}`)
     : `https://gutendex.com/books?search=${encodeURIComponent(trimmed)}`;
 
   const res = await fetchWithTimeout(url, SEARCH_TIMEOUT_MS);
@@ -103,7 +103,7 @@ export function collectPlainTextUrls(item: GutendexBookResult): string[] {
 /* --------------------------- STEP 2: download it --------------------------- */
 
 function labelFor(candidate: string): string {
-  if (candidate.startsWith('/api/')) return '本地后端';
+  if (isBackendUrl(candidate)) return '本地后端';
   if (candidate.startsWith('https://api.allorigins.win')) return '公共代理 allorigins';
   return '浏览器直连';
 }
@@ -114,7 +114,7 @@ export async function fetchGutenbergText(txtUrl: string): Promise<string> {
 
   const candidates: string[] = [];
   if (useBackend) {
-    candidates.push(`/api/books/text?url=${encodeURIComponent(txtUrl)}`);
+    candidates.push(apiUrl(`/api/books/text?url=${encodeURIComponent(txtUrl)}`));
   }
   candidates.push(txtUrl);
   candidates.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(txtUrl)}`);

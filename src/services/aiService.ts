@@ -1,4 +1,4 @@
-import { getBackendHealth } from './apiBase';
+import { apiUrl, getBackendHealth } from './apiBase';
 
 /**
  * 所有 AI 调用的唯一入口。
@@ -96,7 +96,7 @@ export async function requestChat(
   }
 
   // 后端在线时走后端（它也可以自己持有 Key）；否则退回浏览器直连。
-  const endpoint = backend.ok ? '/api/ai/chat' : DEEPSEEK_DIRECT_ENDPOINT;
+  const endpoint = backend.ok ? apiUrl('/api/ai/chat') : DEEPSEEK_DIRECT_ENDPOINT;
 
   try {
     const response = await fetch(endpoint, {

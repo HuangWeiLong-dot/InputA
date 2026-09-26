@@ -1,0 +1,7 @@
+# 这些文件要在 Linux 上执行或解析，而这个仓库是在 Windows 上开发的：core.autocrlf=true
+# 会让工作区里出现 CRLF，scp 到服务器之后就坏了 —— shebang 报 bad interpreter，而且更阴险
+# 的是 `HOST="${1:-}"` 会悄悄得到一个末尾带 \r 的值，报错信息指向完全无关的地方。
+# `eol=lf` 覆盖 core.autocrlf，因此不论在哪个平台检出都是 LF。
+*.sh              text eol=lf
+deploy/Caddyfile  text eol=lf
+deploy/*.service  text eol=lf

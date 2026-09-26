@@ -1,0 +1,103 @@
+name: Deploy frontend (GitHub Pages)
+
+# The SPA is a single document with no client-side router, so a Pages deploy is
+# just "publish dist/". The backend is deployed separately (deploy-backend.yml);
+# this workflow only needs to know its origin, which is baked in at build time.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # pages:write publishes the artifact; id-token:write is the OIDC handshake
+  # deploy-pages performs instead of using a long-lived token.
+  pages: write
+  id-token: write
+
+# One Pages deployment at a time, and never cancel one in flight — a
+# half-published site is worse than a slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Note this installs better-sqlite3 (a native module) even though the
+      # frontend never uses it: `npm run build` runs `tsc -b`, and
+      # tsconfig.node.json typechecks server/ too, which imports it. Prebuilt
+      # binaries make that a download, not a compile.
+      - name: Test
+        run: npm test
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build
+        env:
+          # '/InputA' for a project site, empty for a user/org site — the config
+          # normalises it and falls back to '/'.
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          # Read by src/services/apiBase.ts and compiled into the bundle, so it
+          # is a Variable, not a Secret. It must be https://: the Pages page is
+          # HTTPS, and a plain-http API is blocked as mixed content before CORS
+          # is ever consulted. Leave the variable unset to build a frontend with
+          # no backend — reading still works, Chinese definitions do not.
+          VITE_API_BASE: ${{ vars.API_BASE_URL }}
+        run: |
+          echo "BASE_PATH=${BASE_PATH:-<unset, serving from the domain root>}"
+          echo "VITE_API_BASE=${VITE_API_BASE:-<unset, same-origin — this Pages build will have no backend>}"
+          npm run build
+
+      - name: Check the built paths
+        env:
+          # Step-level env does not carry over between steps, so this has to be
+          # passed again — without it BASE_PATH is empty here and the check below
+          # fails every subpath deploy.
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: |
+          # Guards the one mistake that deploys a silently broken site: asset URLs
+          # that do not carry the base path 404 on Pages.
+          grep -q "src=\"${BASE_PATH:-/}assets/" dist/index.html || {
+            echo "dist/index.html does not reference ${BASE_PATH:-/}assets/ — base path is wrong"
+            grep -oE '(href|src)="[^"]*"' dist/index.html
+            exit 1
+          }
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

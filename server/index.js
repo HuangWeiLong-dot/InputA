@@ -23,11 +23,19 @@ import { listVoices, synthesize } from './edgeTts.ts';
 // TypeScript module, loaded through Node's built-in type stripping (Node
 // 22.18+/23.6+/24). It keeps the read-only SQLite dictionary behind /api/dict.
 import { isDictionaryAvailable, lookupWord } from './dictLookup.ts';
+import { isOriginAllowed, parseAllowedOrigins } from './cors.ts';
 
 const PORT = Number(process.env.API_PORT || process.env.PORT || 8787);
 const PROJECT_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DIST_DIR = path.join(PROJECT_ROOT, 'dist');
 const MAX_BODY_BYTES = 1024 * 1024;
+
+/**
+ * Browser origins allowed on top of localhost, comma-separated, e.g.
+ * CORS_ALLOWED_ORIGINS=https://huangweilong-dot.github.io. Only needed when the
+ * frontend is served by something other than this process (see cors.ts).
+ */
+const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -99,15 +107,26 @@ code{background:#f4f4f5;padding:.15rem .35rem;border:1px solid #d4d4d8}h1{font-s
 <p>可用接口：</p><pre>${API_ROUTES.join('\n')}</pre>
 </body></html>`;
 
-/** Development convenience: the SPA may run on localhost with another port. */
+/** Development convenience, plus whatever CORS_ALLOWED_ORIGINS names (cors.ts). */
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
-  if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  }
+  if (!origin) return;
+
+  // The response now depends on who asked, so anything caching in front of this
+  // process (Caddy, a corporate proxy) must key on Origin. Set even when the
+  // origin is refused: otherwise a refused response could be replayed to an
+  // allowed origin that requested the same URL — and for /api/tts that is a real
+  // cache entry (Cache-Control: private, max-age=86400), not a theoretical one.
+  res.setHeader('Vary', 'Origin');
+
+  if (!isOriginAllowed(origin, ALLOWED_ORIGINS)) return;
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  // 600 is the largest preflight cache Chrome actually honours. Without it every
+  // POST /api/ai/chat re-preflights, i.e. one extra round trip per AI call.
+  res.setHeader('Access-Control-Max-Age', '600');
 }
 
 function sendJson(res, status, payload) {

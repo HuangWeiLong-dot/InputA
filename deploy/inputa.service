@@ -1,0 +1,33 @@
+[Unit]
+Description=InputA backend (language-reader API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=inputa
+Group=inputa
+WorkingDirectory=/opt/inputa/app
+
+# 所有配置都放这里（端口、CORS 白名单、词典路径，以及可选的 DeepSeek key）。
+# 文件权限应为 600。前面的 `-` 表示文件不存在也不算启动失败。
+#
+# 注意后端没有 dotenv 支持：它只读进程环境，而这就是那个提供者。
+EnvironmentFile=-/etc/inputa.env
+
+# 直接跑源码 —— 后端没有构建步骤，.ts 由 Node 内置的类型剥离加载（需要 ≥ 22.18）。
+# 用绝对路径，且这个 node 来自 NodeSource 的 /usr/bin/node；若改用 nvm，这里要跟着改。
+ExecStart=/usr/bin/node server/index.js
+
+Restart=always
+RestartSec=3
+
+# 一个低风险的收紧基线。还能更严（ProtectSystem=strict + ReadOnlyPaths），但
+# 收益有限而排查成本不低，需要的话再往上加。
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

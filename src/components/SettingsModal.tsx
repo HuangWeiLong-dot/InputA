@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Settings, Play, Loader2 } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
 import type { TtsProvider } from '../store/useReaderStore';
-import { getBackendHealth } from '../services/apiBase';
+import { apiUrl, getBackendHealth } from '../services/apiBase';
 import { AUTO_VOICE_HINT, speakWord } from '../services/ttsService';
 import {
   BTN_GHOST,
@@ -68,7 +68,7 @@ export const SettingsModal: React.FC = () => {
           return;
         }
 
-        const response = await fetch('/api/tts/voices');
+        const response = await fetch(apiUrl('/api/tts/voices'));
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data: unknown = await response.json();
         if (cancelled || !Array.isArray(data)) return;

@@ -1,4 +1,4 @@
-import { getBackendHealth } from './apiBase';
+import { apiUrl, getBackendHealth } from './apiBase';
 import { useReaderStore } from '../store/useReaderStore';
 
 /**
@@ -31,8 +31,12 @@ const DEFAULT_VOICE = 'en-US-AriaNeural';
 export const AUTO_VOICE_HINT = '英语 en-US-AriaNeural，德语 de-DE-Seraphina，中文 zh-CN-Xiaoxiao 等';
 
 const EDGE_TIMEOUT_MS = 20_000;
-/** 只在浏览器直连被 CORS 拦掉时才用；正常路径走后端。 */
-const EDGE_ENDPOINT = '/api/tts';
+/**
+ * 在模块加载期就定下来 —— 这正是后端地址必须是**构建期**配置（VITE_API_BASE）
+ * 而不是阅读器设置的原因：这个常量从非组件模块里被读取，改成运行时可变就得把
+ * 全应用每个模块级 URL 都改成惰性求值的函数。
+ */
+const EDGE_ENDPOINT = apiUrl('/api/tts');
 
 let activeAudio: HTMLAudioElement | null = null;
 

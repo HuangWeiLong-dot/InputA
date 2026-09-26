@@ -1,5 +1,5 @@
 import type { DefinitionItem, DictionaryEntry, DictionaryExtra, Meaning } from '../types/reader';
-import { getBackendHealth } from './apiBase';
+import { apiUrl, getBackendHealth, isBackendUrl } from './apiBase';
 
 export type DictionarySource =
   | 'local-ecdict'
@@ -362,28 +362,28 @@ const PROVIDERS: ProviderSpec[] = [
   {
     name: 'local-ecdict',
     // Offline, ~1ms, Chinese definitions and exam tags: ask it before the network.
-    backendUrl: (word) => `/api/dict?word=${encodeURIComponent(word)}`,
+    backendUrl: (word) => apiUrl(`/api/dict?word=${encodeURIComponent(word)}`),
     optional: true,
     requiresLocalDictionary: true,
     parse: parseLocalEcdict,
   },
   {
     name: 'dictionaryapi.dev',
-    backendUrl: (word) => `/api/dictionary/word/${encodeURIComponent(word)}`,
+    backendUrl: (word) => apiUrl(`/api/dictionary/word/${encodeURIComponent(word)}`),
     directUrl: (word) =>
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
     parse: parseDictionaryApi,
   },
   {
     name: 'wiktionary',
-    backendUrl: (word) => `/api/dictionary/wiktionary/${encodeURIComponent(word)}`,
+    backendUrl: (word) => apiUrl(`/api/dictionary/wiktionary/${encodeURIComponent(word)}`),
     directUrl: (word) =>
       `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`,
     parse: parseWiktionary,
   },
   {
     name: 'datamuse',
-    backendUrl: (word) => `/api/dictionary/datamuse/${encodeURIComponent(word)}`,
+    backendUrl: (word) => apiUrl(`/api/dictionary/datamuse/${encodeURIComponent(word)}`),
     directUrl: (word) =>
       `https://api.datamuse.com/words?sp=${encodeURIComponent(word)}&md=d&max=1`,
     parse: parseDatamuse,
@@ -453,7 +453,7 @@ export async function lookupWord(word: string): Promise<DictionaryLookupResult> 
     let providerFailed = false;
 
     for (const url of candidates) {
-      const viaBackend = url.startsWith('/api/');
+      const viaBackend = isBackendUrl(url);
       const outcome = await requestProvider(url);
 
       if (outcome.kind === 'failure') {

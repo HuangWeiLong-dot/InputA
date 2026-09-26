@@ -1,0 +1,105 @@
+name: Deploy backend (Tencent Cloud)
+
+# Syncs server/ to the box and restarts the systemd unit. The frontend is
+# deployed separately (deploy-frontend.yml) and is not needed here: the backend
+# runs `node server/index.js` straight from source, with no build step.
+#
+# One-time server provisioning (user, Node, Caddy, certificate, dictionary file)
+# is NOT done here — it is run by hand once from deploy/, following the runbook
+# DEPLOY.md (untracked, because it names the live host). Keeping it out of CI is
+# the point: the runner never needs write access to /etc.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-backend.yml'
+      - 'deploy/deploy-remote.sh'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy. Defaults to the branch tip; pass an older commit to roll back.'
+        required: false
+        default: ''
+
+# Never let two deploys interleave — two rsync+restart runs racing over the same
+# tree is how a half-updated server happens.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      APP_DIR: /opt/inputa/app
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The ECDICT-backed cases skip themselves when data/stardict.db is absent
+      # (describe.skipIf in server/dictLookup.test.ts), which it always is here.
+      - name: Test
+        run: npm test
+
+      - name: Install the deploy key
+        run: |
+          mkdir -p "$HOME/.ssh"
+          # tr -d '\r': a secret pasted from a Windows clipboard keeps its CRLF
+          # line endings, and ssh rejects such a key with a message that does not
+          # mention line endings at all.
+          printf '%s\n' "${{ secrets.SSH_KEY }}" | tr -d '\r' > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          # Pin the host key instead of trusting whatever answers. If the scan
+          # finds nothing, known_hosts stays empty and StrictHostKeyChecking=yes
+          # below fails the job — which is the point.
+          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Sync the backend
+        run: |
+          # --delete is scoped to server/ on purpose: it prunes only files that
+          # used to be in the repo. The manifests travel in a second, delete-less
+          # rsync because a multi-source rsync with --delete would have to
+          # consider everything else at the root of APP_DIR — and node_modules/
+          # and data/ live there. data/ holds the 851MB dictionary that must
+          # never be removed.
+          #
+          # BatchMode + StrictHostKeyChecking=yes: never prompt. An unpinned host
+          # key would otherwise make ssh ask "continue connecting?" — and its
+          # stdin is the deploy script in the next step, so the prompt would eat
+          # the script as the answer.
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes"
+          rsync -az --delete \
+            -e "ssh -i $HOME/.ssh/deploy_key -p $SSH_PORT $SSH_OPTS" \
+            server/ "$SSH_USER@$SSH_HOST:$APP_DIR/server/"
+          rsync -az \
+            -e "ssh -i $HOME/.ssh/deploy_key -p $SSH_PORT $SSH_OPTS" \
+            package.json package-lock.json "$SSH_USER@$SSH_HOST:$APP_DIR/"
+
+      - name: Install dependencies, restart and verify
+        run: |
+          # The script is piped over stdin rather than copied to the server, so
+          # it always runs the version in this commit and never has to be
+          # deployed to be updated. It reads APP_DIR from $1.
+          #
+          # BatchMode matters most here: with stdin redirected from the script,
+          # any prompt would be answered by the script's own text.
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -i "$HOME/.ssh/deploy_key" -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" < deploy/deploy-remote.sh
