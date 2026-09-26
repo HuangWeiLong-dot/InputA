@@ -65,8 +65,8 @@ fun SettingsDialog(
                 )
                 Spacer(Modifier.height(Space.sm))
                 HintText(
-                    "词典查询走这个地址上的后端服务；填开发机的局域网 IP，" +
-                        "模拟器用默认的 10.0.2.2 即可。",
+                    "词典查询、书籍下载都走这个地址上的后端服务。" +
+                        "开发时后端跑在自己机器上：模拟器填 10.0.2.2，真机填开发机的局域网 IP。",
                 )
                 state.baseUrlError?.let {
                     Spacer(Modifier.height(Space.sm))

@@ -3,13 +3,22 @@
   allowBackup="true" 比 Web 版（localStorage，清缓存即丢）是净收益，但凭证不能跟着走。
   第二阶段会把 DeepSeek API Key 放进 EncryptedSharedPreferences / DataStore，届时
   它的文件名要加进下面的 exclude。现在先把规则和清单一起落下，免得后面忘。
+
+  ⚠️ 一旦写了 include，**没被 include 的路径就已经不在备份里了**。所以只对「已经被
+  include 进来」的东西写 exclude：给一个没被 include 的路径写 exclude 是无效的，lint 会
+  以 FullBackupContent 致命错误拦下构建。本文件里 `file/secrets` 就属于这种情况，因此
+  没有它的 exclude 条目。
+
+  这个错误只在 `assembleRelease` 时出现 —— 它会跑 lintVitalRelease，而 `assembleDebug`
+  不会。所以「debug 能装」不代表 release 能打。
+
+  将来若把 include 放宽到 `file` 整个域，必须同时补上 `file/secrets` 的 exclude。
 -->
 <full-backup-content>
     <include domain="database" path="." />
     <include domain="sharedpref" path="." />
     <include domain="file" path="datastore" />
 
-    <!-- 凭证类：任何情况下都不进备份 -->
+    <!-- 凭证类：任何情况下都不进备份（它在 sharedpref 里，属于上面的白名单） -->
     <exclude domain="sharedpref" path="inputa_secrets.xml" />
-    <exclude domain="file" path="secrets" />
 </full-backup-content>

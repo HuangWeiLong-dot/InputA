@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.inputa.reader.BuildConfig
 import com.inputa.reader.domain.model.AppTheme
 import com.inputa.reader.domain.model.DEFAULT_FONT_SIZE_SP
 import com.inputa.reader.domain.model.DEFAULT_LINE_HEIGHT
@@ -65,8 +66,19 @@ class SettingsRepositoryImpl @Inject constructor(
         return normalized
     }
 
+    /**
+     * 新装时用的后端地址：debug 指向模拟器里的宿主机，release 用 `:domain` 的线上常量。
+     *
+     * 这层包装放在 app 模块而不是 `:domain`，是因为构建类型的差异只有这里看得见 ——
+     * `:domain` 不依赖 android/androidx，因此读不到 `BuildConfig`（而那正是它能在纯 JVM
+     * 上跑测试的原因）。Gradle 侧只定义 debug 的覆盖值，线上值仍然以
+     * `DEFAULT_SERVER_BASE_URL` 为唯一来源，不会多出一份会悄悄漂移的副本。
+     */
+    private val defaultServerBaseUrl: String
+        get() = BuildConfig.DEBUG_SERVER_BASE_URL.ifEmpty { DEFAULT_SERVER_BASE_URL }
+
     override suspend fun currentServerBaseUrl(): String =
-        dataStore.data.first()[Keys.SERVER_BASE_URL] ?: DEFAULT_SERVER_BASE_URL
+        dataStore.data.first()[Keys.SERVER_BASE_URL] ?: defaultServerBaseUrl
 
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         dataStore.edit(block)
@@ -82,7 +94,7 @@ class SettingsRepositoryImpl @Inject constructor(
         ttsCustomUrlTemplate = this[Keys.TTS_CUSTOM_URL] ?: "",
         bionicEnabled = this[Keys.BIONIC_ENABLED] ?: false,
         readingRulerEnabled = this[Keys.RULER_ENABLED] ?: false,
-        serverBaseUrl = this[Keys.SERVER_BASE_URL] ?: DEFAULT_SERVER_BASE_URL,
+        serverBaseUrl = this[Keys.SERVER_BASE_URL] ?: defaultServerBaseUrl,
         wordsPerPage = this[Keys.WORDS_PER_PAGE] ?: WORDS_PER_PAGE,
     )
 

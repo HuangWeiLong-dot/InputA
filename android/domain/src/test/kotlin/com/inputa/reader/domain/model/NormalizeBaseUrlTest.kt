@@ -87,9 +87,11 @@ class NormalizeBaseUrlTest {
     }
 
     @Test
-    fun `the default points at the emulator host loopback`() {
-        // 10.0.2.2 是模拟器里指向宿主机的地址；真机要在设置页改成局域网 IP。
-        assertEquals("http://10.0.2.2:8787/", DEFAULT_SERVER_BASE_URL)
+    fun `the default points at the deployed backend`() {
+        // 这个常量是 release 构建用的线上地址；debug 构建由 app 模块的 buildConfigField
+        // 覆盖成模拟器里的 10.0.2.2（见 app/build.gradle.kts）。
+        assertEquals("https://43-167-196-43.sslip.io/", DEFAULT_SERVER_BASE_URL)
+        // 默认值本身必须已经是规范化形式，否则第一次读出来就不是规范形式。
         assertEquals(DEFAULT_SERVER_BASE_URL, normalizeBaseUrl(DEFAULT_SERVER_BASE_URL))
     }
 }

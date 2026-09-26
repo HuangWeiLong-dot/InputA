@@ -18,3 +18,26 @@ captures/
 
 # 设备验收时截的图，只是验证产物
 build-screenshots/
+
+# release 签名：keystore 与它的密码都不进仓库。
+#
+# 生成方式（在 android/ 下，用 JDK 17 的 keytool；PATH 上的 keytool 可能是 1.8 的）：
+#   keytool -genkeypair -v -keystore release.p12 -storetype pkcs12 -alias inputa \
+#     -keyalg RSA -keysize 2048 -validity 10000
+# 然后建 keystore.properties：
+#   storeFile=release.p12
+#   storePassword=…
+#   keyAlias=inputa
+#   keyPassword=…
+#
+# 这两个文件缺失不会让构建失败，只是 release 包没有签名、装不上（app/build.gradle.kts
+# 会打一条警告）。**务必把 keystore 和密码备份到仓库之外** —— Android 只认同一把钥匙
+# 签出来的更新包，丢了就再也无法给已安装的 App 发版，只能让用户卸载重装。
+#
+# 通配符要写全：只列 *.jks 会漏掉 PKCS12 的 .p12，而那个文件一旦被提交就是签名密钥
+# 进了公开仓库 —— 也就是说任何人都能签一个你的 App 的更新包。
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx

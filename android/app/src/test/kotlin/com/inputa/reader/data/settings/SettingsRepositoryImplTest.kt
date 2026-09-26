@@ -4,10 +4,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.inputa.reader.BuildConfig
 import com.inputa.reader.domain.model.AppTheme
 import com.inputa.reader.domain.model.DEFAULT_FONT_SIZE_SP
 import com.inputa.reader.domain.model.DEFAULT_LINE_HEIGHT
-import com.inputa.reader.domain.model.DEFAULT_SERVER_BASE_URL
 import com.inputa.reader.domain.model.TtsProvider
 import com.inputa.reader.domain.text.WORDS_PER_PAGE
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +36,14 @@ import org.junit.Test
  * [SettingsRepositoryImpl] 的键映射、默认值与地址规范化，全部落在这一个类里。
  */
 class SettingsRepositoryImplTest {
+
+    /**
+     * 单测跑的是 **debug** 变体，所以「默认地址」是 debug 的覆盖值（模拟器指向宿主机），
+     * 而不是 `:domain` 里那个 release 用的线上常量 —— 后者由 `:app:testReleaseUnitTest`
+     * 才会用到。跟着 `BuildConfig` 走而不是写死字符串，是为了让这些断言在覆盖值变化时
+     * 仍然表述同一件事。
+     */
+    private val defaultServerBaseUrl = BuildConfig.DEBUG_SERVER_BASE_URL
 
     /** `DataStore<T>` 只有 `data` 与 `updateData` 两个成员，所以替身可以很短。 */
     private class FakePreferencesDataStore : DataStore<Preferences> {
@@ -71,7 +79,7 @@ class SettingsRepositoryImplTest {
         assertEquals("", settings.ttsCustomUrlTemplate)
         assertEquals(false, settings.bionicEnabled)
         assertEquals(false, settings.readingRulerEnabled)
-        assertEquals(DEFAULT_SERVER_BASE_URL, settings.serverBaseUrl)
+        assertEquals(defaultServerBaseUrl, settings.serverBaseUrl)
         assertEquals(WORDS_PER_PAGE, settings.wordsPerPage)
     }
 
@@ -89,7 +97,7 @@ class SettingsRepositoryImplTest {
 
         assertEquals(AppTheme.Dark, settings.theme)
         assertEquals(DEFAULT_FONT_SIZE_SP, settings.fontSizeSp)
-        assertEquals(DEFAULT_SERVER_BASE_URL, settings.serverBaseUrl)
+        assertEquals(defaultServerBaseUrl, settings.serverBaseUrl)
         assertEquals(WORDS_PER_PAGE, settings.wordsPerPage)
     }
 
@@ -184,6 +192,6 @@ class SettingsRepositoryImplTest {
     /** 空存储时 `currentServerBaseUrl` 也要给出可用值，网络层靠它建 Retrofit。 */
     @Test
     fun `the current server url falls back to the default`() = runTest {
-        assertEquals(DEFAULT_SERVER_BASE_URL, repository.currentServerBaseUrl())
+        assertEquals(defaultServerBaseUrl, repository.currentServerBaseUrl())
     }
 }
