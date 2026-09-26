@@ -114,11 +114,22 @@ function detectSpaced(text: string): LanguageGuess {
 }
 
 /**
+ * 打分只看开头这么多字符。
+ *
+ * 8k 字符（约 1300 词）足以让停用词频率收敛 —— 英语每 100 词里就有约 5 个 "the"，
+ * 再多的文本不会让答案更准。而代价必须与文本长度脱钩：`detectSpaced` 是
+ * O(停用词数 × token 数)，几 MB 的粘贴会产生几十万 token，那是几秒到几分钟的主线程
+ * 阻塞 —— 表现就是「粘贴一大段文字之后界面卡住不动」。所以先切片、再 trim，
+ * 免得还为一个几 MB 的字符串白白复制一遍。
+ */
+const MAX_SAMPLE_CHARS = 8000;
+
+/**
  * 猜这段文字的语言。空白或判不出来时给 `en`、置信度 0 ——
  * 调用方永远拿到一个可用的标签，不需要再判 null。
  */
 export function detectLanguage(text: string): LanguageGuess {
-  const sample = text.trim();
+  const sample = text.slice(0, MAX_SAMPLE_CHARS).trim();
   if (!sample) return { language: 'en', confidence: 0 };
 
   const nonSpaced = detectNonSpaced(sample);

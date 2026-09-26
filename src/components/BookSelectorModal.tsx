@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { X, Search, BookOpen, FileText, Loader2, AlertCircle, Library } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
 import { SAMPLE_BOOKS } from '../data/sampleBooks';
-import { searchGutendexBooks, loadBookFromGutendex } from '../services/gutendexApi';
+import {
+  searchGutendexBooks,
+  loadBookFromGutendex,
+  processGutenbergText,
+} from '../services/gutendexApi';
 import type { GutendexBookResult } from '../services/gutendexApi';
 import { detectLanguage } from '../services/languageDetect';
 import type { Book } from '../types/reader';
@@ -26,7 +30,14 @@ export const BookSelectorModal: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
 
   const [customTitle, setCustomTitle] = useState('');
-  const [customContent, setCustomContent] = useState('');
+  /**
+   * 粘贴的正文**刻意不进 React state**，只用一个布尔驱动按钮的禁用态。
+   *
+   * 放进 state 意味着每次按键都要重新渲染整个字符串；粘贴几 MB 之后，光是把那个值
+   * 交给 React 就会让输入明显卡顿。正文只在点「载入阅读器」时从 DOM 读一次。
+   */
+  const [hasCustomContent, setHasCustomContent] = useState(false);
+  const customContentRef = useRef<HTMLTextAreaElement>(null);
 
   if (!isBookCatalogOpen) return null;
 
@@ -70,8 +81,15 @@ export const BookSelectorModal: React.FC = () => {
   };
 
   const handleSaveCustomArticle = () => {
-    const content = customContent.trim();
+    const content = (customContentRef.current?.value ?? '').trim();
     if (!content) return;
+
+    const title = customTitle.trim() || '自定义导入';
+
+    // 先切章，而不是塞成单个 "Section 1"：否则一本长文在翻页条上就是一个巨大章节，
+    // 分页也只能把段落一路堆下去。复用 Gutenberg 那条切分器 —— 它与书源无关，
+    // 认的是 CHAPTER I. / Letter 2 这类标题，认不出来时按 1500 词切成 Section N。
+    const chapters = processGutenbergText(content, title);
 
     // 粘贴的正文没有任何书源元数据，所以这里跑一次本地检测 —— 语言标签与朗读
     // 音色都靠它。置信度低也照存：检测出来的是「最可能」，比没有强。
@@ -79,11 +97,11 @@ export const BookSelectorModal: React.FC = () => {
 
     const customBook: Book = {
       id: `custom-${Date.now()}`,
-      title: customTitle.trim() || '自定义导入',
+      title,
       author: 'User Imported',
       source: 'custom',
       language: detected.language,
-      chapters: [{ title: 'Section 1', content }],
+      chapters,
     };
 
     setCurrentBook(customBook);
@@ -92,7 +110,13 @@ export const BookSelectorModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-overlay-in">
-      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col border border-[var(--border-color)] bg-[var(--bg-surface)] animate-panel-in">
+      {/*
+        `dvh` 而不是 `vh`：手机上 `vh` 指的是「浏览器工具栏收起时」的高度，不随键盘
+        收缩，于是面板底部会被键盘顶出可视区 —— 表现就是「粘贴一大段文字之后，下方
+        按鈕消失了」。`dvh` 跟随实际可视高度。支持面比本项目已经依赖的 `color-mix()`
+        更宽，所以不是新的门槛。
+      */}
+      <div className="flex max-h-[88dvh] w-full max-w-3xl flex-col border border-[var(--border-color)] bg-[var(--bg-surface)] animate-panel-in">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--border-color)] px-5 py-4">
           <div className="flex items-center gap-2.5">
@@ -256,26 +280,36 @@ export const BookSelectorModal: React.FC = () => {
                   粘贴英文正文
                 </label>
                 <textarea
+                  ref={customContentRef}
                   rows={9}
-                  value={customContent}
-                  onChange={(event) => setCustomContent(event.target.value)}
+                  defaultValue=""
+                  onChange={(event) => setHasCustomContent(event.target.value.trim().length > 0)}
                   placeholder="粘贴任意英文文章、新闻、故事或教材文本…"
                   className={`${FIELD} font-serif leading-relaxed`}
                 />
               </div>
-
-              <button
-                type="button"
-                onClick={handleSaveCustomArticle}
-                disabled={!customContent.trim()}
-                className={`${BTN_PRIMARY} w-full`}
-              >
-                <FileText className="h-4 w-4" />
-                <span>载入阅读器</span>
-              </button>
             </div>
           )}
         </div>
+
+        {/*
+          「载入阅读器」放在滚动区**外面**做成面板 footer。原先它在滚动区最底部，
+          正文一长就被推到视野之外；配合上面 `dvh` 那个键盘问题，手机上就彻底够不着了。
+          只有粘贴页有这个面板级动作，所以按 tab 条件渲染。
+        */}
+        {activeTab === 'paste' && (
+          <div className="border-t border-[var(--border-color)] px-5 py-4">
+            <button
+              type="button"
+              onClick={handleSaveCustomArticle}
+              disabled={!hasCustomContent}
+              className={`${BTN_PRIMARY} w-full`}
+            >
+              <FileText className="h-4 w-4" />
+              <span>载入阅读器</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -58,7 +58,7 @@ import com.inputa.reader.ui.theme.TypeScale
  * 覆盖 —— 所以把它拆出来是这次移植少数几处「覆盖度净增」之一。
  *
  * 面板是**底部抽屉**而不是居中对话框：Web 版在窄屏（`lg` 以下）本来就是底部抽屉
- * （`max-h-[86vh]`），只在宽屏才右侧停靠。手机上就是一个抽屉。
+ * （`max-h-[86dvh]`），只在宽屏才右侧停靠。手机上就是一个抽屉。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +76,7 @@ fun DefinitionSheet(
     val tokens = LocalThemeTokens.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // 上限 86% 屏高，与 Web 版的 `max-h-[86vh]` 对齐：面板不该吃掉整个屏幕，
+    // 上限 86% 屏高，与 Web 版的上限（`max-h-[86dvh]`）对齐：面板不该吃掉整个屏幕，
     // 否则读者会失去「我在读哪一段」的上下文。
     val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.86f).dp
 

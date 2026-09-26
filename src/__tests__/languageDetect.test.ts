@@ -67,6 +67,23 @@ describe('Language detection: other scripts', () => {
     expect(detectLanguage('   ').language).toBe('en');
     expect(detectLanguage('1234 5678').language).toBe('en');
   });
+
+  it('samples only the head, so a huge paste cannot change the answer', () => {
+    // 采样上限的护栏。detectSpaced 的代价是 O(停用词数 × token 数)，所以只取开头
+    // 8000 字符 —— 几 MB 的粘贴否则要阻塞主线程几秒到几分钟（表现为「贴完就卡住」）。
+    //
+    // 用两条只在**采样窗口之外**不同的输入做差分：开头 13k 字符全是英语，把窗口填满；
+    // 尾巴再长也读不到。上限一旦被去掉，右边那 3000 句法语会凭停用词数量反超，
+    // 两者结果就不再相等，这条立即变红。
+    const englishHead =
+      'the quick brown fox jumps over the lazy dog and the cat sat down. '.repeat(200);
+    const englishTail = 'the cat sat on the mat and the dog ran away. '.repeat(3000);
+    const frenchTail = 'le chat est sur la table avec les autres et les choses. '.repeat(3000);
+
+    expect(detectLanguage(englishHead + frenchTail)).toEqual(
+      detectLanguage(englishHead + englishTail),
+    );
+  });
 });
 
 describe('Bionic reading', () => {

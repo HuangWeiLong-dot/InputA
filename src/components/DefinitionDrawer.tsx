@@ -133,7 +133,8 @@ export const DefinitionDrawer: React.FC<DefinitionDrawerProps> = ({
       */}
       <div onClick={onClose} className="fixed inset-0 z-30 bg-black/40 lg:hidden animate-overlay-in" />
 
-      <aside className="fixed left-0 right-0 bottom-0 z-40 flex max-h-[86vh] flex-col border-t border-[var(--border-color)] bg-[var(--bg-surface)] animate-drawer-bottom lg:top-16 lg:left-auto lg:right-0 lg:bottom-0 lg:max-h-none lg:w-[var(--drawer-width)] lg:border-t-0 lg:border-l lg:animate-drawer-right">
+      {/* dvh 而不是 vh：抽屉贴底，手机键盘弹起时 vh 不收缩，底部内容会被顶出可视区。 */}
+      <aside className="fixed left-0 right-0 bottom-0 z-40 flex max-h-[86dvh] flex-col border-t border-[var(--border-color)] bg-[var(--bg-surface)] animate-drawer-bottom lg:top-16 lg:left-auto lg:right-0 lg:bottom-0 lg:max-h-none lg:w-[var(--drawer-width)] lg:border-t-0 lg:border-l lg:animate-drawer-right">
         {/* Status bar */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--border-color)] px-5 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -366,7 +367,7 @@ export const DefinitionDrawer: React.FC<DefinitionDrawerProps> = ({
           {/*
             Notes and saved sentences live inside the scrolling body, not in a
             third shrink-0 band at the bottom: on a phone the drawer is capped at
-            max-h-[86vh], and another fixed band would squeeze this scroll area
+            max-h-[86dvh], and another fixed band would squeeze this scroll area
             down to almost nothing.
           */}
           <NotesSection word={word} sentence={surroundingSentence} />

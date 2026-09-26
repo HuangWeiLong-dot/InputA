@@ -102,7 +102,8 @@ export const SettingsModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-overlay-in">
-      <div className="flex max-h-[88vh] w-full max-w-2xl flex-col border border-[var(--border-color)] bg-[var(--bg-surface)] animate-panel-in">
+      {/* dvh 而不是 vh：手机上 vh 不随键盘收缩，面板底部会被键盘顶出可视区。 */}
+      <div className="flex max-h-[88dvh] w-full max-w-2xl flex-col border border-[var(--border-color)] bg-[var(--bg-surface)] animate-panel-in">
         <div className="flex items-center justify-between border-b border-[var(--border-color)] px-5 py-4">
           <div className="flex items-center gap-2.5">
             <Settings className="h-5 w-5 text-[var(--accent)]" />
