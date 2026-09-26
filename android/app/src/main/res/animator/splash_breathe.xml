@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动图标的动画：极轻的呼吸（缩放 1.00 ↔ 1.07）。
+
+  刻意不做旋转、不做进度条式的循环：这是一个阅读器，冷启动时最该传达的是「安静地
+  准备好了」，而不是「正在努力加载」。700ms 一程、来回、用 accelerate-decelerate，
+  看上去像书页在呼吸。
+
+  两个 objectAnimator 都作用在同一个 group 的 scaleX/scaleY 上 —— 只缩一个轴会变成
+  压扁，而不是放大。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android">
+    <objectAnimator
+        android:propertyName="scaleX"
+        android:valueFrom="1.0"
+        android:valueTo="1.07"
+        android:duration="700"
+        android:repeatCount="infinite"
+        android:repeatMode="reverse"
+        android:interpolator="@android:interpolator/accelerate_decelerate" />
+    <objectAnimator
+        android:propertyName="scaleY"
+        android:valueFrom="1.0"
+        android:valueTo="1.07"
+        android:duration="700"
+        android:repeatCount="infinite"
+        android:repeatMode="reverse"
+        android:interpolator="@android:interpolator/accelerate_decelerate" />
+</set>

@@ -1,7 +1,8 @@
 # 第三方来源与许可
 
-本项目的部分功能移植自 [LingKuma](https://github.com/lingkuma/LingKuma)（MIT 许可）。
-下面逐项列出搬运了什么、对应到本仓库的哪个文件，以便追溯。
+本项目的部分功能移植自 [LingKuma](https://github.com/lingkuma/LingKuma)（MIT 许可），
+图标几何取自 [lucide](https://lucide.dev)（ISC 许可）。下面逐项列出搬运了什么、
+对应到本仓库的哪个文件，以便追溯。
 
 ## LingKuma
 
@@ -32,6 +33,22 @@ base64 混淆的第三方 key）**没有**被搬运。本项目只使用用户�
 
 ---
 
+## lucide
+
+Copyright © 2026 Lucide Icons and Contributors · ISC License（全文见下）
+
+| 本仓库 | 来源（lucide） | 搬运内容 |
+| --- | --- | --- |
+| `src/**/*.tsx` | `lucide-react` ^1.46.0 | Web 版界面里全部图标的**选择与用法**（`BookOpen`、`BookMarked`、`ChevronLeft`、`Check`、`Sparkles`、`Volume2` 等，共十余个） |
+| `android/app/src/main/kotlin/com/inputa/reader/ui/icons/InputaIcons.kt` | 同上，逐条取自 `dist/esm/icons/` 下对应文件 | 十六个图标在 24×24 视口下的**几何**，即每个 `<path>` 的 `d` 属性原文，改写为 Compose 的 `ImageVector` |
+
+Android 端**没有**搬运 SVG 文件本身，也不依赖任何图标库：把路径数据转写成 Kotlin 的
+`ImageVector` 是为了让「24×24 视口、2 描边、圆头圆角连接、20dp 渲染」这套规格只写一处，
+并可被 `InputaIconsTest` 断言。转写时把 lucide 的 `<circle>` 元素改写成了等价的
+两段圆弧（`ImageVector` 没有圆形节点），其余路径逐字保留 —— 所以形状与 Web 版一致。
+
+---
+
 ## MIT License
 
 ```
@@ -56,6 +73,26 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+```
+
+## ISC License
+
+```
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
 ## 其他数据来源

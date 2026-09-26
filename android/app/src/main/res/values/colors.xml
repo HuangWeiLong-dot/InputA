@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  注意：XML 注释里不能出现连续两个 ASCII 连字符，所以这里用中文名称而不是 CSS 变量名。
+  羊皮纸底色对应 index.css 里 sepia 主题的 bg-main 变量。
+-->
+<resources>
+    <color name="sepia_bg">#F8EED9</color>
+    <color name="ic_launcher_background">#8F7500</color>
+</resources>

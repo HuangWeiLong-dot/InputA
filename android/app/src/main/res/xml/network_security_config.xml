@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  允许明文 HTTP。后端是局域网里的自建 Node 服务（server/，没有 TLS），而服务器地址是
+  用户在设置页填的，构建期不可能知道主机名 —— 所以这里只能按协议放行，不能按域名白名单。
+
+  失败时的报错是 java.net.UnknownServiceException: CLEARTEXT communication to <host>
+  not permitted by network security policy。看到它就说明这个文件没生效。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

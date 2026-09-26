@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  冷启动画面里的那本书。几何**逐字照抄** ic_launcher_foreground.xml（打开的书，108x108，
+  内容留在安全区 28..80 之间），只在外面套了一个具名 group —— `animated-vector` 的
+  `<target>` 是按名字找 group/path 的，没有名字就没法动画。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:name="book"
+        android:pivotX="54"
+        android:pivotY="55">
+        <!-- 左页 -->
+        <path
+            android:fillColor="#FFF8EED9"
+            android:pathData="M29,36 L52,36 L52,74 L29,74 Z" />
+        <!-- 右页 -->
+        <path
+            android:fillColor="#FFEAD9B4"
+            android:pathData="M56,36 L79,36 L79,74 L56,74 Z" />
+
+        <!-- 左页文字行 -->
+        <path android:fillColor="#FF8F7500" android:pathData="M34,44 L47,44 L47,46.5 L34,46.5 Z" />
+        <path android:fillColor="#FF8F7500" android:pathData="M34,51 L47,51 L47,53.5 L34,53.5 Z" />
+        <path android:fillColor="#FF8F7500" android:pathData="M34,58 L43,58 L43,60.5 L34,60.5 Z" />
+
+        <!-- 右页文字行 -->
+        <path android:fillColor="#FF8F7500" android:pathData="M61,44 L74,44 L74,46.5 L61,46.5 Z" />
+        <path android:fillColor="#FF8F7500" android:pathData="M61,51 L74,51 L74,53.5 L61,53.5 Z" />
+        <path android:fillColor="#FF8F7500" android:pathData="M61,58 L70,58 L70,60.5 L61,60.5 Z" />
+    </group>
+</vector>

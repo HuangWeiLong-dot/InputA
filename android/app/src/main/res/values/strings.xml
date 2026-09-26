@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  中文作为默认语言，与 Web 版一致（Web 版所有用户可见文案都是硬编码中文，没有 i18n 层）。
+  这意味着非中文设备上也会显示中文 —— 与 Web 行为相同，是有意的，不要「修」它。
+
+  注意：带格式化参数的字符串里，百分号必须写成 %%，否则资源编译失败。
+  本应用有一批含 % 的文案（TTS 语速 +10%、词频百分比等），落地时逐个检查。
+-->
+<resources>
+        <!-- 桌面上的名字。版本号不写在这里，它在界面上由 BuildConfig.VERSION_NAME 拼出来，
+         这样改 build.gradle.kts 就不会漏掉一处。 -->
+    <string name="app_name">InputA</string>
+</resources>

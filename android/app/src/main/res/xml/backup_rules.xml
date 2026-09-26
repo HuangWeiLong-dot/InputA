@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  allowBackup="true" 比 Web 版（localStorage，清缓存即丢）是净收益，但凭证不能跟着走。
+  第二阶段会把 DeepSeek API Key 放进 EncryptedSharedPreferences / DataStore，届时
+  它的文件名要加进下面的 exclude。现在先把规则和清单一起落下，免得后面忘。
+-->
+<full-backup-content>
+    <include domain="database" path="." />
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="datastore" />
+
+    <!-- 凭证类：任何情况下都不进备份 -->
+    <exclude domain="sharedpref" path="inputa_secrets.xml" />
+    <exclude domain="file" path="secrets" />
+</full-backup-content>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  API 31+ 的启动画面（Android 12 起的系统 SplashScreen）。
+
+  这些属性在 31 以下不存在，所以整份主题放在 values-v31 里**覆盖同名样式**（同名样式会
+  整份替换，所以上面四项要与 values/themes.xml 保持一致）；老设备读不到这一份，
+  仍然是「羊皮纸底色 + 静态图标」的窗口背景 —— 不闪、只是没有动画。
+
+  windowSplashScreenBackground 显式写成与 windowBackground 同一个颜色：不写的话，
+  31+ 的启动画面会退回主题的 colorBackground（这里是 Material 的白），
+  冷启动会先白一下再变羊皮纸。
+-->
+<resources>
+    <style name="Theme.InputA" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/sepia_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSplashScreenBackground">@color/sepia_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+    </style>
+</resources>

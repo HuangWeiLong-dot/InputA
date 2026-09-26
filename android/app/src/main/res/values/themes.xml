@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  这个框架主题只负责「Compose 画出第一帧之前」的那一层：窗口底色、状态栏。
+  应用内一切视觉都走 Compose 的 ThemeTokens（对应 index.css 的 18 个自定义属性）。
+
+  windowBackground 取羊皮纸色 —— 那是 Web 版的默认主题（index.html 的内联脚本也把
+  'sepia' 当兜底），所以冷启动第一帧的颜色与随后 Compose 画出来的一致，不闪。
+  后续接上「同步主题镜像」后，这里会在 MainActivity.onCreate 里被 setTheme 覆盖。
+
+  父主题用框架的 Material 而不是 AppCompat：本工程不依赖 AppCompat，
+  引它只为拿一个主题不值当。
+-->
+<resources>
+    <style name="Theme.InputA" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/sepia_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
