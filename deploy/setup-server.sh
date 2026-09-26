@@ -58,22 +58,18 @@ step "创建用户与目录"
 if id -u "$APP_USER" >/dev/null 2>&1; then
   echo "用户 $APP_USER 已存在，跳过。"
 else
-  # 需要能登录（部署是经 SSH 用这个用户跑的），所以用 /bin/bash 而不是 nologin。
+  # **服务**账号，不是部署账号：部署以 root 经 SSH 进行（见 DEPLOY.md），这个用户
+  # 只用来跑 inputa.service 这个进程，所以它不需要登录能力。给它 /bin/bash 只是因为
+  # 你在需要时能 `sudo -u inputa` 进去看一眼，本身不带任何权限。
   adduser --system --group --home "$APP_HOME" --shell /bin/bash "$APP_USER"
 fi
 
 # 不依赖 adduser 是否建了家目录（--system 的行为在不同版本上不一致），显式保证。
+# 属主必须是 $APP_USER 而不是 root —— systemd 单元是 `User=inputa`，以 root 身份
+# rsync/npm ci 写出来的文件若归了 root，服务读起来就会出问题。
 install -d -o "$APP_USER" -g "$APP_USER" -m 0755 "$APP_HOME"
 install -d -o "$APP_USER" -g "$APP_USER" -m 0755 "$APP_DIR"
 install -d -o "$APP_USER" -g "$APP_USER" -m 0755 "$APP_DIR/data"
-
-# 部署时要写 ~/.ssh/authorized_keys，这里先把目录建好、权限设对 ——
-# sshd 对这两处权限很挑剔，权限不对会静默拒绝公钥认证。
-install -d -o "$APP_USER" -g "$APP_USER" -m 0700 "$APP_HOME/.ssh"
-if [[ ! -f "$APP_HOME/.ssh/authorized_keys" ]]; then
-  install -o "$APP_USER" -g "$APP_USER" -m 0600 /dev/null "$APP_HOME/.ssh/authorized_keys"
-  echo "已创建空的 authorized_keys，请把部署公钥追加进去（见本机 DEPLOY.md）。"
-fi
 
 # ------------------------------------------------------------------- 依赖包
 
@@ -126,26 +122,14 @@ step "安装 inputa.service"
 
 install -m 0644 -o root -g root "$SCRIPT_DIR/inputa.service" /etc/systemd/system/inputa.service
 
-# 部署脚本会执行 `sudo systemctl restart inputa`，所以给这个用户一条最小授权。
-# 路径从 command -v 取实际值：/bin 与 /usr/bin 的符号链接关系会让写死的路径匹配不上。
-systemctl_bin="$(command -v systemctl)"
-journalctl_bin="$(command -v journalctl)"
-tmp_sudo="$(mktemp)"
-cat > "$tmp_sudo" <<SUDOERS
-# InputA 部署用：只允许重启本服务、看它的状态和日志。由 deploy/setup-server.sh 生成。
-$APP_USER ALL=(root) NOPASSWD: $systemctl_bin restart inputa, \\
-    $systemctl_bin status inputa, \\
-    $journalctl_bin -u inputa *
-SUDOERS
-
-# 必须先用 visudo 校验：一个语法错误的 sudoers 文件会让你彻底用不了 sudo。
-if ! visudo -c -f "$tmp_sudo" >/dev/null; then
-  rm -f "$tmp_sudo"
-  die "sudoers 规则校验失败，未安装（sudo 未被影响）。"
+# 部署以 root 经 SSH 进行，所以不需要给 $APP_USER 任何 sudo 授权 —— 它只是服务账号。
+#
+# 早先的版本在这里写过一条 /etc/sudoers.d/inputa-deploy 免密规则；机器上若还留着，
+# 顺手删掉：一条没人再需要的免密 sudo 授权，正是最该清掉的那种残留权限。
+if [[ -f /etc/sudoers.d/inputa-deploy ]]; then
+  rm -f /etc/sudoers.d/inputa-deploy
+  echo "已删除遗留的 /etc/sudoers.d/inputa-deploy（部署改用 root，不再需要）。"
 fi
-install -m 0440 -o root -g root "$tmp_sudo" /etc/sudoers.d/inputa-deploy
-rm -f "$tmp_sudo"
-echo "已写入 /etc/sudoers.d/inputa-deploy"
 
 systemctl daemon-reload
 systemctl enable inputa.service
@@ -156,8 +140,8 @@ systemctl enable inputa.service
 cat <<NEXT
 
 =====================================================================
-这一步做完的部分：用户、目录、Node 24、systemd 单元、/etc/inputa.env、
-sudoers 授权。接下来还有四步：
+这一步做完的部分：服务账号、目录、Node 24、systemd 单元、/etc/inputa.env。
+接下来还有四步：
 
   1. 配 TLS 和反代（会接进本机已有的 nginx，纯做加法）：
 
@@ -177,7 +161,14 @@ sudoers 授权。接下来还有四步：
      解出来的文件名若不是 stardict.db，改成它。先 free -h 看一眼内存余量：
      这个文件约 851MB，会被 SQLite 只读打开。
 
-  3. 放部署公钥进 $APP_HOME/.ssh/authorized_keys（一行一个）。
+  3. 部署是以 **root** 经 SSH 进行的，所以把部署公钥追加到 /root/.ssh/authorized_keys。
+     先确认 sshd 允许 root 用密钥登录：
+
+       sudo sshd -T | grep -i permitrootlogin      # 需要 prohibit-password 或 yes
+
+     注意 $APP_USER 只是**服务**账号（systemd 单元是 User=$APP_USER），不需要也不能
+     通过 SSH 登录。以 root 部署写出的文件属主会是 root，deploy-remote.sh 每次部署
+     末尾会用 chown -R 收回给 $APP_USER —— 属主不能随「以谁部署」漂移。
 
   4. 安全组放行 22 / 80 / 443 —— 不要放行 8787，它只该被本机的 nginx 访问。
 
