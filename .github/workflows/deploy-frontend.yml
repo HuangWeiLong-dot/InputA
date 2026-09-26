@@ -81,11 +81,21 @@ jobs:
         run: |
           # Guards the one mistake that deploys a silently broken site: asset URLs
           # that do not carry the base path 404 on Pages.
-          grep -q "src=\"${BASE_PATH:-/}assets/" dist/index.html || {
-            echo "dist/index.html does not reference ${BASE_PATH:-/}assets/ — base path is wrong"
+          #
+          # configure-pages emits '/InputA' with no trailing slash, while
+          # vite.config.ts normalises it to '/InputA/'. The guard has to apply the
+          # same rule: without it the pattern becomes `src="/InputAassets/`, which
+          # never matches, and the check fails every subpath deploy while the built
+          # HTML is in fact correct.
+          base="${BASE_PATH:-/}"
+          [[ "$base" == */ ]] || base="$base/"
+
+          grep -q "src=\"${base}assets/" dist/index.html || {
+            echo "::error::dist/index.html does not reference ${base}assets/ — the base path is wrong"
             grep -oE '(href|src)="[^"]*"' dist/index.html
             exit 1
           }
+          echo "asset URLs carry ${base} — correct."
 
       - uses: actions/upload-pages-artifact@v3
         with:
