@@ -4,7 +4,7 @@ name: Deploy backend (Tencent Cloud)
 # deployed separately (deploy-frontend.yml) and is not needed here: the backend
 # runs `node server/index.js` straight from source, with no build step.
 #
-# One-time server provisioning (user, Node, Caddy, certificate, dictionary file)
+# One-time server provisioning (user, Node, nginx + certificate, dictionary file)
 # is NOT done here — it is run by hand once from deploy/, following the runbook
 # DEPLOY.md (untracked, because it names the live host). Keeping it out of CI is
 # the point: the runner never needs write access to /etc.

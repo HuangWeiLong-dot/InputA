@@ -3,9 +3,9 @@
 # bad interpreter，而且更阴险的是 `HOST="${1:-}"` 会悄悄得到一个末尾带 \r 的值，
 # 报错信息指向完全无关的地方。`eol=lf` 覆盖 core.autocrlf，因此不论在哪个平台检出
 # 都是 LF。
-*.sh              text eol=lf
-deploy/Caddyfile  text eol=lf
-deploy/*.service  text eol=lf
+*.sh                text eol=lf
+deploy/*.conf       text eol=lf
+deploy/*.service    text eol=lf
 
 # Gradle 的启动脚本没有扩展名，上面的 *.sh 覆盖不到它，必须单独列一行 ——
 # Linux/macOS 上 `./gradlew :domain:test` 是 Android 模块的入口命令。

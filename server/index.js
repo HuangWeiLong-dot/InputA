@@ -113,7 +113,7 @@ function setCorsHeaders(req, res) {
   if (!origin) return;
 
   // The response now depends on who asked, so anything caching in front of this
-  // process (Caddy, a corporate proxy) must key on Origin. Set even when the
+  // process (nginx, a corporate proxy) must key on Origin. Set even when the
   // origin is refused: otherwise a refused response could be replayed to an
   // allowed origin that requested the same URL — and for /api/tts that is a real
   // cache entry (Cache-Control: private, max-age=86400), not a theoretical one.

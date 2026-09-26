@@ -361,9 +361,9 @@ AI 语法拆解、TTS 朗读、笔记与例句界面、单词爆炸面板、备�
 
 线上形态是前后端分开的：前端静态资源在 **GitHub Pages**，后端 Node 服务在**腾讯云**
 （东京节点，免备案），两边都由 **GitHub Actions** 自动部署 —— 后端经 SSH 推送、由
-systemd 守护，前面站一个 Caddy 负责证书。
+systemd 守护，前面由 nginx 反代并负责证书。
 
-一次性的服务器初始化（子域名、安全组、Caddy 与证书、词典文件、部署密钥）由人在服务器上
+一次性的服务器初始化（子域名、安全组、nginx 与证书、词典文件、部署密钥）由人在服务器上
 执行一遍，脚本在 [`deploy/`](./deploy)。GitHub 侧需要在 Settings → Pages 把 Source 设为
 **GitHub Actions**，并配好三个 Secret（`SSH_HOST`、`SSH_USER`、`SSH_KEY`）和一个
 Variable（`API_BASE_URL`）；之后推 `main` 即自动部署，回滚用 Actions 页面手工触发

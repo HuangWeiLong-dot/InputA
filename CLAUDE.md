@@ -127,8 +127,11 @@ The cost is real and accepted: Room invalidates per table, so **every write re-r
 ## Deployment
 
 Two units, deployed independently: the SPA to **GitHub Pages** (at the repository subpath,
-`/InputA/`) and `server/` to a Tencent Cloud box (Hong Kong, so no ICP filing), behind Caddy
-for TLS and run by systemd with `node server/index.js`. The walkthrough is `DEPLOY.md`,
+`/InputA/`) and `server/` to a Tencent Cloud box (Tokyo, so no ICP filing), behind the nginx
+that was already serving other sites on that host, run by systemd with `node server/index.js`.
+TLS is certbot's, matching the convention already on that machine — `deploy/setup-tls.sh` only
+adds one `server_name`-scoped site file and never touches the existing vhosts. The walkthrough
+is `DEPLOY.md`,
 which is deliberately untracked because it names the live host; this section is the part that
 constrains future code changes.
 

@@ -41,7 +41,7 @@ public_ip="$(curl -fsS --max-time 10 https://api.ipify.org 2>/dev/null || true)"
 
 if [[ -z "$resolved" ]]; then
   echo "警告：$HOST 目前解析不出地址。"
-  echo "      请先在 DuckDNS 上把它的 A 记录指向本机公网 IP，否则 Caddy 签不下证书。"
+  echo "      请先在 DuckDNS 上把它的 A 记录指向本机公网 IP，否则证书签不下来。"
 elif [[ -z "$public_ip" ]]; then
   echo "提示：$HOST 解析为 $resolved（取不到本机公网 IP，跳过比对）。"
 elif [[ "$resolved" != "$public_ip" ]]; then
@@ -101,46 +101,9 @@ if (( node_major < 22 || (node_major == 22 && node_minor < 18) )); then
   die "Node $(node -v) 太旧。后端需要 ≥ 22.18（.ts 靠内置类型剥离加载）。"
 fi
 
-# --------------------------------------------------------------------- Caddy
-
-step "安装 Caddy（官方 apt 源）"
-
-if command -v caddy >/dev/null 2>&1; then
-  echo "已安装：$(caddy version)"
-else
-  apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-    | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-    > /etc/apt/sources.list.d/caddy-stable.list
-  chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  apt-get update -qq
-  apt-get install -y -qq caddy
-  echo "已安装：$(caddy version)"
-fi
-
-# ---------------------------------------------------------------- Caddyfile
-
-step "写入 /etc/caddy/Caddyfile"
-
-PLACEHOLDER='REPLACE_WITH_YOUR_DUCKDNS_HOST'
-tmp_caddy="$(mktemp)"
-sed "s/$PLACEHOLDER/$HOST/" "$SCRIPT_DIR/Caddyfile" > "$tmp_caddy"
-
-# 校验再落地：一个语法错误的 Caddyfile 会让 Caddy 起不来，而 TLS 是整套部署的
-# 前提，不该等到浏览器里报错才发现。
-#
-# --adapter caddyfile 不能省：Caddy 是按**文件名**推断格式的，而临时文件叫
-# tmp.XXXXXX，不指定的话它会当成 JSON 去解析。
-validate_log="$(mktemp)"
-if ! caddy validate --adapter caddyfile --config "$tmp_caddy" >"$validate_log" 2>&1; then
-  sed 's/^/    /' "$validate_log"
-  rm -f "$tmp_caddy" "$validate_log"
-  die "Caddyfile 校验失败，未写入。"
-fi
-rm -f "$validate_log"
-install -m 0644 -o root -g root "$tmp_caddy" /etc/caddy/Caddyfile
-rm -f "$tmp_caddy"
+# TLS 和反代不在这里做 —— 由 deploy/setup-tls.sh 单独负责，因为它要接进这台机器上
+# **已经在跑**的 nginx（还服务着别的站点），属于「给现有 nginx 做加法」，跟这里
+# 「建用户、装 Node、装 systemd 单元」是两件独立的事。见那个脚本的说明。
 
 # ------------------------------------------------------------------- env 文件
 
@@ -188,24 +151,20 @@ systemctl daemon-reload
 systemctl enable inputa.service
 # 刻意不 start：应用目录此刻还是空的，启动了也只会每 3 秒重启一次刷屏。第一次部署会拉起它。
 
-step "启动 Caddy"
-systemctl enable caddy
-systemctl restart caddy
-sleep 1
-systemctl is-active --quiet caddy && echo "caddy 正在运行。" || {
-  echo "caddy 没能起来，最近日志：" >&2
-  journalctl -u caddy -n 30 --no-pager >&2
-  exit 1
-}
-
 # ------------------------------------------------------------------ 后续步骤
 
 cat <<NEXT
 
 =====================================================================
-服务器初始化完成。接下来还差三步（详见本机 DEPLOY.md，未入库）：
+这一步做完的部分：用户、目录、Node 24、systemd 单元、/etc/inputa.env、
+sudoers 授权。接下来还有四步：
 
-  1. 放词典（可选，但没有它就没有中文释义）：
+  1. 配 TLS 和反代（会接进本机已有的 nginx，纯做加法）：
+
+       cd $SCRIPT_DIR
+       sudo ./setup-tls.sh $HOST
+
+  2. 放词典（可选，但没有它就没有中文释义）：
 
        # 在服务器上直接下载，217MB 的压缩包里就是那个 851MB 的 .db
        cd /tmp
@@ -215,16 +174,17 @@ cat <<NEXT
        chown $APP_USER:$APP_USER $APP_DIR/data/stardict.db
        chmod 0644 $APP_DIR/data/stardict.db
 
-     解出来的文件名若不是 stardict.db，改成它。
+     解出来的文件名若不是 stardict.db，改成它。先 free -h 看一眼内存余量：
+     这个文件约 851MB，会被 SQLite 只读打开。
 
-  2. 放部署公钥进 /opt/inputa/.ssh/authorized_keys（一行一个）。
+  3. 放部署公钥进 $APP_HOME/.ssh/authorized_keys（一行一个）。
 
-  3. 腾讯云安全组放行 22 / 80 / 443 —— 不要放行 8787，它只该被本机的
-     Caddy 访问。
+  4. 安全组放行 22 / 80 / 443 —— 不要放行 8787，它只该被本机的 nginx 访问。
 
 然后推一次 main 分支，或手工触发 deploy-backend 工作流。
 
-验证：
+验证（inputa.service 要等第一次部署才会启动，所以在那之前 /api/health 会 502，
+TLS 本身应该已经通了）：
 
   curl -fsS https://$HOST/api/health
 
