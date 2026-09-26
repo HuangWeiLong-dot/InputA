@@ -57,6 +57,21 @@ jobs:
       - name: Test
         run: npm test
 
+      # Check the configuration before anything tries to use it. Without this the
+      # first failure is ssh-keyscan on an empty hostname, which does not say
+      # which secret is missing.
+      - name: Check the deploy secrets
+        run: |
+          missing=0
+          for name in SSH_HOST SSH_USER SSH_KEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::secret $name is not set (Settings → Secrets and variables → Actions)"
+              missing=1
+            fi
+          done
+          [[ $missing -eq 0 ]] || exit 1
+          echo "SSH_HOST=$SSH_HOST SSH_USER=$SSH_USER SSH_PORT=$SSH_PORT"
+
       - name: Install the deploy key
         run: |
           mkdir -p "$HOME/.ssh"
