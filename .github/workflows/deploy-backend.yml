@@ -108,15 +108,21 @@ jobs:
           # and data/ live there. data/ holds the 851MB dictionary that must
           # never be removed.
           #
+          # --mkpath: without it rsync creates only the last path component, so a
+          # missing APP_DIR (provisioning not finished, or a rebuilt server) fails
+          # as `mkdir ".../server" failed: No such file or directory`, which reads
+          # like a permissions problem and is not one. Ownership is normalised by
+          # deploy-remote.sh's chown straight after, so nothing lands as root.
+          #
           # BatchMode + StrictHostKeyChecking=yes: never prompt. An unpinned host
           # key would otherwise make ssh ask "continue connecting?" — and its
           # stdin is the deploy script in the next step, so the prompt would eat
           # the script as the answer.
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes"
-          rsync -az --delete \
+          rsync -az --delete --mkpath \
             -e "ssh -i $HOME/.ssh/deploy_key -p $SSH_PORT $SSH_OPTS" \
             server/ "$SSH_USER@$SSH_HOST:$APP_DIR/server/"
-          rsync -az \
+          rsync -az --mkpath \
             -e "ssh -i $HOME/.ssh/deploy_key -p $SSH_PORT $SSH_OPTS" \
             package.json package-lock.json "$SSH_USER@$SSH_HOST:$APP_DIR/"
 
