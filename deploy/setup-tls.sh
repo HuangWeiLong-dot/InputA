@@ -70,8 +70,14 @@ fi
 
 step "写入 $SITE_FILE"
 
-if [[ -f "$SITE_FILE" ]] && grep -q 'managed by Certbot' "$SITE_FILE"; then
-  echo "该文件已被 certbot 接管（含 443 与证书路径），保持不动。"
+# 只有「已经属于这个域名」且「被 certbot 接管」时才跳过重写。
+#
+# 后半句不能少：换域名时站点文件同样带着 managed by Certbot 标记，只判断那一条就会
+# 跳过重写，于是 server_name 和证书都停在旧域名上 —— 而那正是这次要改的东西。
+if [[ -f "$SITE_FILE" ]] \
+   && grep -q 'managed by Certbot' "$SITE_FILE" \
+   && grep -qF "server_name $HOST;" "$SITE_FILE"; then
+  echo "已是 $HOST 且由 certbot 接管（含 443 与证书路径），保持不动。"
 else
   sed "s/$PLACEHOLDER/$HOST/" "$SCRIPT_DIR/inputa.nginx.conf" > "$SITE_FILE"
   chmod 0644 "$SITE_FILE"
