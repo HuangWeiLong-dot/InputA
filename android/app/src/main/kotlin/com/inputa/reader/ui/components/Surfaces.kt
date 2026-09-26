@@ -193,11 +193,31 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 
 /** 面板底部那个居右的「关闭」。三个面板原先各写一遍。 */
 @Composable
-fun CloseFooter(onClose: () -> Unit, modifier: Modifier = Modifier, label: String = "关闭") {
+fun CloseFooter(
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = "关闭",
+    /**
+     * 可选的次要动作，排在「关闭」左边。
+     *
+     * 存在的理由：动作按钮若放在可增长内容**下面**，内容一长就会被挤出面板 ——
+     * 面板带裁剪（`cardSurface` 的 `clip`），滚也滚不到。footer 永远在最后，
+     * 所以它是这类动作唯一安全的位置。书架粘贴页的「载入阅读器」就是这么修的。
+     */
+    action: (@Composable () -> Unit)? = null,
+) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
+        // 有两个按钮时用 spacedBy + 右对齐（与设置页那对按钮同一做法）；
+        // 只有一个时保持原来的右对齐。权重刻意不用：窄屏上让两个按钮各占一半
+        // 反而会把「载入阅读器」压成两行。
+        horizontalArrangement = if (action != null) {
+            Arrangement.spacedBy(Space.md, Alignment.End)
+        } else {
+            Arrangement.End
+        },
     ) {
+        action?.invoke()
         PanelButton(label, onClick = onClose, tone = Tone.Accent)
     }
 }

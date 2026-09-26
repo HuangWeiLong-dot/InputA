@@ -117,6 +117,9 @@ private fun Bookshelf(reader: ReaderViewModel, onDismiss: () -> Unit) {
         onPasteTitle = viewModel::setPasteTitle,
         onPasteContent = viewModel::setPasteContent,
         onSavePasted = viewModel::savePasted,
+        // 选文件在对话框里发起（SAF 的 launcher 得在 Activity 的注册表里），
+        // 读文件与解析归 ViewModel。
+        onImportFile = viewModel::importFile,
         onOpen = viewModel::openBook,
         onDelete = viewModel::deleteBook,
         onDismiss = onDismiss,

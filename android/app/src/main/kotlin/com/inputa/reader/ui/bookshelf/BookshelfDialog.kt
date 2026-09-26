@@ -1,11 +1,15 @@
 package com.inputa.reader.ui.bookshelf
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
@@ -51,11 +55,16 @@ fun BookshelfDialog(
     onPasteTitle: (String) -> Unit,
     onPasteContent: (String) -> Unit,
     onSavePasted: () -> Unit,
+    onImportFile: (Uri) -> Unit,
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalPanel(onDismiss = onDismiss) {
+    // imePadding：键盘弹起时面板底部（footer 那对按钮）不该被压在键盘下面。
+    // 本应用此前哪都没用过 insets 修饰符，而 ModalPanel 的高度上限取自
+    // `LocalConfiguration.screenHeightDp`，那个值**不随键盘收缩**，所以这个补丁是必需的。
+    // 若某个机型上 Dialog 窗口本身已随 insets 收缩，`WindowInsets.ime` 会是 0，那就是 no-op。
+    ModalPanel(onDismiss = onDismiss, modifier = Modifier.imePadding()) {
         PanelTitle(text = "书架", icon = InputaIcons.BookOpen)
         Spacer(Modifier.height(Space.lg))
 
@@ -63,6 +72,7 @@ fun BookshelfDialog(
             options = listOf(
                 BookshelfViewModel.Tab.SHELF,
                 BookshelfViewModel.Tab.SEARCH,
+                BookshelfViewModel.Tab.FILE,
                 BookshelfViewModel.Tab.PASTE,
             ),
             selected = state.tab,
@@ -70,6 +80,7 @@ fun BookshelfDialog(
                 when (tab) {
                     BookshelfViewModel.Tab.SHELF -> "书架"
                     BookshelfViewModel.Tab.SEARCH -> "搜索"
+                    BookshelfViewModel.Tab.FILE -> "文件"
                     BookshelfViewModel.Tab.PASTE -> "粘贴"
                 }
             },
@@ -78,6 +89,9 @@ fun BookshelfDialog(
                 when (tab) {
                     BookshelfViewModel.Tab.SHELF -> InputaIcons.BookOpen
                     BookshelfViewModel.Tab.SEARCH -> InputaIcons.Search
+                    // 图标集里没有「文件/上传」这一类，而新增图标必须挂进
+                    // `InputaIcons.all`（测试按它遍历）。粘贴页本来就是 null，照抄即可。
+                    BookshelfViewModel.Tab.FILE -> null
                     BookshelfViewModel.Tab.PASTE -> null
                 }
             },
@@ -99,12 +113,29 @@ fun BookshelfDialog(
             when (state.tab) {
                 BookshelfViewModel.Tab.SHELF -> ShelfTab(state, onOpen, onDelete)
                 BookshelfViewModel.Tab.SEARCH -> SearchTab(state, onQuery, onSearch, onLoadGutendex)
-                BookshelfViewModel.Tab.PASTE -> PasteTab(state, onPasteTitle, onPasteContent, onSavePasted)
+                BookshelfViewModel.Tab.FILE -> FileTab(state, onImportFile)
+                BookshelfViewModel.Tab.PASTE -> PasteTab(state, onPasteTitle, onPasteContent)
             }
         }
 
         Spacer(Modifier.height(Space.lg))
-        CloseFooter(onClose = onDismiss)
+        // 「载入阅读器」放在 footer，而不是粘贴页的正文里：正文那块是
+        // `weight(1f, fill = false)`，内容一长就会被挤出面板、被 cardSurface 裁掉
+        // （这个对话框里没有任何滚动容器，所以滚也滚不到）。footer 在 weight 之外，永远在。
+        val pasteAction: (@Composable () -> Unit)? =
+            if (state.tab == BookshelfViewModel.Tab.PASTE) {
+                {
+                    PanelButton(
+                        label = "载入阅读器",
+                        onClick = onSavePasted,
+                        tone = Tone.Accent,
+                        enabled = state.pasteContent.isNotBlank(),
+                    )
+                }
+            } else {
+                null
+            }
+        CloseFooter(onClose = onDismiss, action = pasteAction)
     }
 }
 
@@ -258,12 +289,64 @@ private fun SearchTab(
     }
 }
 
+/**
+ * 支持的 MIME 类型。
+ *
+ * 最后两项是兜底：不少文件管理器给 `.epub` / `.md` 报的 MIME 并不标准（常见的是
+ * `application/octet-stream`），只列标准类型会让这些文件在选择器里变灰、根本选不中。
+ * 真正的类型判断在解析层按扩展名做（`parseKindOf`），不依赖这里的 MIME。
+ */
+private val IMPORT_MIME_TYPES = arrayOf(
+    "text/plain",
+    "text/markdown",
+    "text/html",
+    "application/epub+zip",
+    "application/octet-stream",
+)
+
+/**
+ * 文件导入。
+ *
+ * 用 SAF（`OpenDocument`）而不是申请存储权限：系统选择器把 Uri 授权给本应用，
+ * **不需要任何权限** —— manifest 里至今也只有 INTERNET 与 ACCESS_NETWORK_STATE 两条。
+ *
+ * 选完之后的读文件与解析都在 ViewModel 里（IO 线程），这里只管发起选择。
+ */
+@Composable
+private fun FileTab(
+    state: BookshelfViewModel.State,
+    onImportFile: (Uri) -> Unit,
+) {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        // 用户取消时回调照样会来，那时 uri 是 null。
+        uri?.let(onImportFile)
+    }
+
+    PanelButton(
+        label = state.busyLabel ?: "选择文件",
+        onClick = { launcher.launch(IMPORT_MIME_TYPES) },
+        tone = Tone.Accent,
+        // 解析期间禁用：`importBook` 的 id 取自时钟，同毫秒的两次保存会互相覆盖。
+        // ViewModel 里另有一道重入保护，理由是那里的注释。
+        enabled = state.busyLabel == null,
+    )
+    Spacer(Modifier.height(Space.sm))
+    HintText(
+        "支持 TXT / Markdown / HTML / EPUB。EPUB 按它自己声明的章节顺序分章，" +
+            "其余格式按 CHAPTER I.、Letter 2 这类标题分章，认不出来就按词数均分。",
+    )
+    Spacer(Modifier.height(Space.sm))
+    HintText(
+        "导入的书会存进书库，退出再进还在。PDF 暂不支持 —— " +
+            "它抽出的文本质量通常很差，扫描件更是完全抽不出文字。",
+    )
+}
+
 @Composable
 private fun PasteTab(
     state: BookshelfViewModel.State,
     onTitle: (String) -> Unit,
     onContent: (String) -> Unit,
-    onSave: () -> Unit,
 ) {
     PanelTextField(
         value = state.pasteTitle,
@@ -277,14 +360,10 @@ private fun PasteTab(
         placeholder = "把正文粘贴到这里…",
         singleLine = false,
         minHeight = 180,
+        // 有上界才不会被长正文顶到把别的控件挤出面板；受限之后输入框自己在内部滚动。
+        // 「载入阅读器」已经移到面板 footer（见上面），所以这里不再需要它。
+        maxHeight = 260,
     )
     Spacer(Modifier.height(Space.sm))
     HintText("语言会自动检测，用来挑朗读音色与显示语言标签。")
-    Spacer(Modifier.height(Space.lg))
-    PanelButton(
-        label = "载入阅读器",
-        onClick = onSave,
-        tone = Tone.Accent,
-        enabled = state.pasteContent.isNotBlank(),
-    )
 }

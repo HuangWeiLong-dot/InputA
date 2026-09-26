@@ -1,9 +1,14 @@
 package com.inputa.reader.ui.bookshelf
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.inputa.reader.domain.book.BookDownloadException
+import com.inputa.reader.domain.book.BookImportException
 import com.inputa.reader.domain.book.GutendexBook
+import com.inputa.reader.domain.book.importBook
 import com.inputa.reader.domain.lang.LanguageDetect
 import com.inputa.reader.domain.model.Book
 import com.inputa.reader.domain.model.BookChapter
@@ -12,7 +17,9 @@ import com.inputa.reader.domain.repository.BookRepository
 import com.inputa.reader.domain.repository.BookSummary
 import com.inputa.reader.domain.util.Clock
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,22 +29,27 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
  * 书架。
  *
  * 相对 Web 版多了一件事：**书是持久化的**。那边 `useReaderStore` 只存进度与设置，
- * `currentBook` 不落盘，刷新就回到内置第一本。所以那边的书库只有「内置 / 搜索 / 粘贴」
- * 三个入口而没有「我导入过的书」这一栏 —— 这里必须有。
+ * `currentBook` 不落盘，刷新就回到内置第一本。所以那边的书库只有「内置 / 搜索 / 文件 /
+ * 粘贴」四个入口，而这里还多一栏「我导入过的书」。
+ *
+ * `context` 只用于文件导入（`ContentResolver`）—— 选文件的动作在 UI 层（SAF 要在
+ * Activity 里注册 launcher），这里只负责把 Uri 读成字节。
  */
 @HiltViewModel
 class BookshelfViewModel @Inject constructor(
     private val books: BookRepository,
     private val clock: Clock,
+    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    enum class Tab { SHELF, SEARCH, PASTE }
+    enum class Tab { SHELF, SEARCH, FILE, PASTE }
 
     data class State(
         val tab: Tab = Tab.SHELF,
@@ -61,6 +73,22 @@ class BookshelfViewModel @Inject constructor(
     private val error = MutableStateFlow<String?>(null)
     private val pasteTitle = MutableStateFlow("")
     private val pasteContent = MutableStateFlow("")
+
+    /**
+     * 正在进行的耗时动作的说明（目前只有文件解析）。
+     *
+     * `State.busyLabel` 原本一直没人赋值 —— 导入功能正好把它用上，不必再加一个字段。
+     */
+    private val busyLabel = MutableStateFlow<String?>(null)
+
+    /**
+     * 导入进行中的重入标志。
+     *
+     * 光靠 UI 上「禁用按钮」不够：禁用要等重组才生效，而在那之前第二次点击已经进来了。
+     * 而 `importBook` 的 id 取自 `clock.nowMillis()` —— 同一毫秒的两次保存会被
+     * `BookDao.saveBook` 当成同一个 id **静默覆盖**（它按 id 重写整本的章节）。
+     */
+    private var isImporting = false
 
     /**
      * 载入完成、可以打开的书 id。
@@ -89,7 +117,7 @@ class BookshelfViewModel @Inject constructor(
         combine(results, isSearching, isLoadingBook, error, builtinBooks) { r, searching, loading, err, builtin ->
             Job(r, searching, loading, err, builtin)
         },
-        combine(pasteTitle, pasteContent) { t, c -> t to c },
+        combine(pasteTitle, pasteContent, busyLabel) { t, c, busy -> Triple(t, c, busy) },
     ) { shelf, currentTab, currentQuery, job, paste ->
         State(
             tab = currentTab,
@@ -102,6 +130,7 @@ class BookshelfViewModel @Inject constructor(
             error = job.error,
             pasteTitle = paste.first,
             pasteContent = paste.second,
+            busyLabel = paste.third,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), State())
 
@@ -170,6 +199,59 @@ class BookshelfViewModel @Inject constructor(
                 isLoadingBook.value = false
             }
         }
+    }
+
+    /**
+     * 导入一个文件（TXT / Markdown / HTML / EPUB）。
+     *
+     * 读文件与解析都放在 IO 上：`ContentResolver` 是阻塞 IO，解析（解压 + 正则）几 MB 要
+     * 几百毫秒 —— 放主线程会掉帧。解析本身在 `:domain`，纯函数、有单测（见 BookImportTest）。
+     */
+    fun importFile(uri: Uri) {
+        if (isImporting) return
+        isImporting = true
+        error.value = null
+
+        viewModelScope.launch {
+            busyLabel.value = "正在解析文件…"
+            try {
+                val book = withContext(Dispatchers.IO) {
+                    val name = displayNameOf(uri)
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw BookImportException("读不到这个文件（可能已被移动或删除）")
+                    importBook(name, bytes, clock)
+                }
+                books.save(book)
+                opened.trySend(book.id)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: BookImportException) {
+                // 这些消息是给读者看的（「这本 EPUB 里抽不出文字…」），原样显示、不要包一层。
+                error.value = failure.message
+            } catch (failure: Exception) {
+                error.value = failure.message ?: "导入失败"
+            } finally {
+                busyLabel.value = null
+                isImporting = false
+            }
+        }
+    }
+
+    /**
+     * 文件的显示名，标题就是从它来的。
+     *
+     * SAF 给的 `uri.lastPathSegment` 通常是内部 id（形如 `document:1234`）而不是文件名，
+     * 真正的名字要查 `OpenableColumns.DISPLAY_NAME`；查不到才退回路径段。
+     */
+    private fun displayNameOf(uri: Uri): String {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                    val name = cursor.getString(0)
+                    if (!name.isNullOrBlank()) return name
+                }
+            }
+        return uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "导入的书"
     }
 
     /**

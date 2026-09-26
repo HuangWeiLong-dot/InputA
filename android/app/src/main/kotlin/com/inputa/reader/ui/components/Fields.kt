@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.inputa.reader.ui.icons.InputaIcons
 import com.inputa.reader.ui.theme.LocalThemeTokens
@@ -54,6 +55,7 @@ fun PanelTextField(
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
     minHeight: Int = 0,
+    maxHeight: Int = 0,
 ) {
     val tokens = LocalThemeTokens.current
 
@@ -79,7 +81,15 @@ fun PanelTextField(
                 // 加在 Box 上时的后果是：框看着有 180dp 高，而真正能聚焦的只有顶部
                 // 那 40dp —— 点在中下部毫无反应，文字还留在上一个字段里。
                 // 设备验证时就是这么发现的。
-                .then(if (minHeight > 0) Modifier.heightIn(min = minHeight.dp) else Modifier),
+                //
+                // 上界同样是可选的，而且它不只是「好看」：不给上界时输入框会随内容
+                // 无限长高，粘一大段正文就会把后面的控件挤出面板（面板带裁剪），
+                // 书架粘贴页的「载入阅读器」就是这么消失的。给了上界之后输入框在
+                // 内部滚动。
+                .heightIn(
+                    min = minHeight.dp,
+                    max = if (maxHeight > 0) maxHeight.dp else Dp.Unspecified,
+                ),
         )
     }
 }

@@ -144,8 +144,13 @@ object GutenbergTextProcessor {
      * 在**所有返回路径的末尾**统一施加，而不是只补在某一条分支上 —— 三条路径
      * （按标题切、按词数分节、整篇一章）里只有前两条和最后一条有风险，但统一处理
      * 意味着将来新增分支也自动受保护。
+     *
+     * `internal` 而不是 `private`：文件导入那条路（[BookImport]）**自己构章**、
+     * 不经过 [process]，所以它得能调到这里 —— 否则那个上限就只保护了一半的入库路径，
+     * 而这条不变量（「所有路径都受保护」）正是上面那段注释所承诺的。
+     * 对 `:app` 仍然不可见。
      */
-    private fun enforceSizeLimit(chapters: List<BookChapter>): List<BookChapter> {
+    internal fun enforceSizeLimit(chapters: List<BookChapter>): List<BookChapter> {
         if (chapters.all { it.content.length <= MAX_CHAPTER_CHARS }) return chapters
         return chapters.flatMap { chapter ->
             if (chapter.content.length <= MAX_CHAPTER_CHARS) listOf(chapter) else splitOversized(chapter)
