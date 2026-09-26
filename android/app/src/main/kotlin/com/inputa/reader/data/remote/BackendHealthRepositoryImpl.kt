@@ -3,6 +3,7 @@ package com.inputa.reader.data.remote
 import com.inputa.reader.domain.repository.BackendHealth
 import com.inputa.reader.domain.repository.BackendHealthRepository
 import com.inputa.reader.domain.repository.SettingsRepository
+import com.inputa.reader.domain.repository.probeFailureReason
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,6 +78,8 @@ class BackendHealthRepositoryImpl @Inject constructor(
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (error: Exception) {
-        BackendHealth(ok = false, error = error.message ?: error::class.simpleName)
+        // 走 probeFailureReason 而不是 error.message：OkHttp 的失败消息里通常带着主机，
+        // 而设置页会把它显示出来。见那个函数的注释。
+        BackendHealth(ok = false, error = probeFailureReason(error))
     }
 }

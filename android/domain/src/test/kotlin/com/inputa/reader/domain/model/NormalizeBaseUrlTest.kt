@@ -96,4 +96,26 @@ class NormalizeBaseUrlTest {
         assertTrue(DEFAULT_SERVER_BASE_URL.startsWith("https://"))
         assertEquals(DEFAULT_SERVER_BASE_URL, normalizeBaseUrl(DEFAULT_SERVER_BASE_URL))
     }
+
+    @Test
+    fun `the settings field never shows the built-in default`() {
+        // 这条是「界面上不出现后端地址」那件事的护栏：设置页给的是内置默认值时，
+        // 输入框必须是空的（配合 placeholder 表达「留空＝用内置的」）。
+        // 若有人把它改回「直接回填 stored」，界面上就又开始显示那个地址了。
+        assertEquals("", displayedServerBaseUrl(DEFAULT_SERVER_BASE_URL, null))
+    }
+
+    @Test
+    fun `the settings field does show an address the user set`() {
+        // 用户自己填过的必须回填 —— 否则他没法确认自己填的到底生效了没有。
+        assertEquals("http://192.168.1.20:8787/", displayedServerBaseUrl("http://192.168.1.20:8787/", null))
+    }
+
+    @Test
+    fun `an in-progress edit wins over the stored value`() {
+        assertEquals("http://10.0.2.2:8787/", displayedServerBaseUrl(DEFAULT_SERVER_BASE_URL, "http://10.0.2.2:8787/"))
+        // 空串是「正在编辑、且清空了」，不是「没在编辑」—— 要原样显示，
+        // 否则用户一清空输入框，已保存的地址就又跳回来了。
+        assertEquals("", displayedServerBaseUrl("http://192.168.1.20:8787/", ""))
+    }
 }

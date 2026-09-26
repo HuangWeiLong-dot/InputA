@@ -93,6 +93,20 @@ val DEFAULT_SERVER_BASE_URL: String =
     String(java.util.Base64.getDecoder().decode(DEFAULT_SERVER_BASE_URL_B64))
 
 /**
+ * 设置页那栏地址**该显示什么**。
+ *
+ * 规则：编辑中的原文优先；否则**只在用户自己设过地址时**回填，内置的线上默认值不回填 ——
+ * 那个地址不该摆在界面上。于是空输入框有了明确含义（就是「用内置的」），与
+ * `SettingsRepository.resetServerBaseUrl` 配套。
+ *
+ * 放在领域层而不是 ViewModel 里，是为了让它能被 `NormalizeBaseUrlTest` 钉住：
+ * `:app` 的单元测试任务在本仓库里不可靠（见 android/README 或 CLAUDE.md 的说明），
+ * 而这条规则一旦被改回「直接回填 stored」，界面上就又开始显示那个地址了。
+ */
+fun displayedServerBaseUrl(stored: String, draft: String?): String =
+    draft ?: stored.takeIf { it != DEFAULT_SERVER_BASE_URL }.orEmpty()
+
+/**
  * 合法主机名或 IP 字面量，可带端口。只做**形状**校验，不做 DNS 解析。
  *
  * 两条分支：IPv6 字面量（方括号包起来）与普通的「标签.标签」主机名。

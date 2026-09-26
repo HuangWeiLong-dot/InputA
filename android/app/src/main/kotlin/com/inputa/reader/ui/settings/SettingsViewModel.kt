@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.inputa.reader.domain.model.AppTheme
 import com.inputa.reader.domain.model.FONT_SIZE_RANGE
 import com.inputa.reader.domain.model.ReaderSettings
+import com.inputa.reader.domain.model.displayedServerBaseUrl
 import com.inputa.reader.domain.repository.BackendHealth
 import com.inputa.reader.domain.repository.BackendHealthRepository
 import com.inputa.reader.domain.repository.SettingsRepository
@@ -32,8 +33,12 @@ class SettingsViewModel @Inject constructor(
         val health: BackendHealth = BackendHealth(),
         val isTesting: Boolean = false,
     ) {
-        /** 输入框里该显示什么：编辑中的原文优先，否则是已保存的值。 */
-        val shownBaseUrl: String get() = baseUrlDraft ?: settings.serverBaseUrl
+        /**
+         * 输入框里该显示什么。规则本身在领域层（`displayedServerBaseUrl`），
+         * 这里只是把它接到当前状态上 —— 那样才测得到，`:app` 的测试任务不可靠。
+         */
+        val shownBaseUrl: String
+            get() = displayedServerBaseUrl(settings.serverBaseUrl, baseUrlDraft)
     }
 
     private val draft = MutableStateFlow<String?>(null)
@@ -63,10 +68,19 @@ class SettingsViewModel @Inject constructor(
      * 校验与补斜杠由仓储负责（`normalizeBaseUrl`），返回 null 表示输入不合法 ——
      * 那时**不写入**，并在输入框下面给出原因。让用户看到「地址不合法」而不是
      * 「连不上服务」，排查方向完全不同。
+     *
+     * 空输入是**恢复内置默认**而不是错误：输入框不预填默认地址（见 `shownBaseUrl`），
+     * 所以「清空再保存」是最自然的恢复方式，不该撞上「地址不合法」。
      */
     fun saveBaseUrl() {
         val raw = draft.value ?: return
         viewModelScope.launch {
+            if (raw.isBlank()) {
+                settings.resetServerBaseUrl()
+                error.value = null
+                draft.value = null
+                return@launch
+            }
             val saved = settings.setServerBaseUrl(raw)
             if (saved == null) {
                 error.value = "地址不合法：需要是 http(s)://主机[:端口] 的形式"

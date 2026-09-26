@@ -66,6 +66,12 @@ class SettingsRepositoryImpl @Inject constructor(
         return normalized
     }
 
+    override suspend fun resetServerBaseUrl() {
+        // 删掉这个键就够了：读取时（见 toSettings 与 currentServerBaseUrl）会回落到
+        // defaultServerBaseUrl，也就是内置的线上地址。
+        edit { it.remove(Keys.SERVER_BASE_URL) }
+    }
+
     /**
      * 新装时用的后端地址：debug 指向模拟器里的宿主机，release 用 `:domain` 的线上常量。
      *

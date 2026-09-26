@@ -209,16 +209,36 @@ data class BackendHealth(
     val ok: Boolean = false,
     val service: String? = null,
     /**
-     * 服务器自己配了 DeepSeek key，客户端可以不带 `Authorization`。
+     * 服务端能回答 `/api/dict`，也就是它读得到 `data/stardict.db`。
      *
      * `null` 表示**老版本服务器没告诉我们**，与「明确说了没有」不同 ——
-     * 前者应该照常带上客户端 key。
+     * 前者应该照常去试本地词典。
      */
     val dictionaryAvailable: Boolean? = null,
+    /** 服务器自己配了 DeepSeek key，客户端可以不带 `Authorization`。 */
     val deepseekKeyConfigured: Boolean = false,
-    /** 探测失败的原因，用于设置页的「测试连接」。 */
+    /** 探测失败的原因，用于设置页的「测试连接」。**必须经过 [probeFailureReason] 翻译**，见那里。 */
     val error: String? = null,
 )
+
+/**
+ * 把探测失败翻译成一句给用户看的原因，**刻意不带上地址**。
+ *
+ * 不能直接把 `Throwable.message` 交给界面：OkHttp 的失败消息通常**自带主机**，形如
+ * `Failed to connect to /43.167.196.43:443` 或 `Unable to resolve host "…"`，而设置页会
+ * 把它显示成「连不上：…」—— 于是「界面上不出现后端地址」这条就白做了。
+ *
+ * 顺带也比原始异常更好用：一句「域名解析失败」比 `java.net.UnknownHostException: …`
+ * 更能说明下一步该查什么。
+ */
+fun probeFailureReason(error: Throwable): String = when (error) {
+    is java.net.UnknownHostException -> "域名解析失败"
+    is java.net.SocketTimeoutException -> "连接超时"
+    is java.net.ConnectException -> "无法连接"
+    is javax.net.ssl.SSLException -> "TLS 握手失败"
+    // 兜底只说类型名：异常消息里可能就是那个地址，而类型名不会。
+    else -> "请求失败（${error::class.simpleName ?: "未知错误"}）"
+}
 
 /**
  * 健康探测。
@@ -292,6 +312,16 @@ interface SettingsRepository {
      * @return 规范化后的地址；输入不合法返回 null 且**不写入**。
      */
     suspend fun setServerBaseUrl(raw: String): String?
+
+    /**
+     * 清掉用户自定义的服务器地址，恢复内置默认。
+     *
+     * 存在的理由：设置页的输入框**不预填**内置默认值（那是个线上地址，不该摆在界面上），
+     * 于是「空输入框」必须有个明确含义 —— 就是「用内置的」。没有这个方法的话，用户清空
+     * 输入框再点保存会撞上 `normalizeBaseUrl("")` 返回 null，看到一句「地址不合法」，
+     * 那是个死胡同。
+     */
+    suspend fun resetServerBaseUrl()
 
     /** 读一次当前值，不等待 Flow —— 网络层构造 baseUrl 时需要同步拿到。 */
     suspend fun currentServerBaseUrl(): String
