@@ -27,6 +27,7 @@ export const App: React.FC = () => {
     explosionSentence,
     setPages,
     setCurrentBook,
+    restoreLastBook,
   } = useReaderStore();
   const { markAsNewWord } = useVocabularyStore();
 
@@ -43,12 +44,22 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Load the default book when the reader is opened for the first time.
+  // On first open, return the reader to the book they were last in — that is what makes an
+  // imported or pasted book survive a refresh (its text lives in IndexedDB).
+  //
+  // Two steps, because the built-in samples are handled differently: their text ships in the
+  // bundle and is never written to storage, so they can only be found back by their id.
   useEffect(() => {
-    if (!currentBook) {
-      setCurrentBook(SAMPLE_BOOKS[0]);
-    }
-  }, [currentBook, setCurrentBook]);
+    if (currentBook) return;
+    void (async () => {
+      if (await restoreLastBook()) return;
+      // `restoreLastBook` bails out when a book appeared meanwhile; don't clobber it.
+      if (useReaderStore.getState().currentBook) return;
+
+      const lastId = useReaderStore.getState().lastReadBookIdFromProgress();
+      setCurrentBook(SAMPLE_BOOKS.find((sample) => sample.id === lastId) ?? SAMPLE_BOOKS[0]);
+    })();
+  }, [currentBook, restoreLastBook, setCurrentBook]);
 
   // Re-paginate whenever the book or the chapter changes.
   useEffect(() => {

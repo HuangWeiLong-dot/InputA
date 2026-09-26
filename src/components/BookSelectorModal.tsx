@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { X, Search, BookOpen, FileText, Loader2, AlertCircle, Library } from 'lucide-react';
+import { X, Search, BookOpen, FileText, Loader2, AlertCircle, Library, Upload } from 'lucide-react';
 import { useReaderStore } from '../store/useReaderStore';
 import { SAMPLE_BOOKS } from '../data/sampleBooks';
 import {
@@ -8,9 +8,14 @@ import {
   processGutenbergText,
 } from '../services/gutendexApi';
 import type { GutendexBookResult } from '../services/gutendexApi';
+import { readBookFile } from '../services/bookImport';
+import { saveBook } from '../services/bookStorage';
 import { detectLanguage } from '../services/languageDetect';
 import type { Book } from '../types/reader';
 import { BTN_GHOST, BTN_PRIMARY, FIELD } from './ui';
+
+/** 文件选择器能选的东西。PDF 不在其中，理由见 bookImport.ts 的开头。 */
+const IMPORT_ACCEPT = '.txt,.text,.md,.markdown,.html,.htm,.xhtml,.epub';
 
 const TAB_BUTTON =
   '-mb-px border-b-2 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.08em] transition-colors';
@@ -19,10 +24,18 @@ const TAB_BUTTON =
 const BOOK_ROW =
   'flex w-full items-center justify-between gap-4 border border-[var(--border-color)] p-4 text-left transition-colors hover:border-[var(--accent)] hover:bg-[var(--bg-hover)]';
 
+/** 就地显示一条错误。搜索失败与文件导入失败都用它，省得两处样式各写一遍、日后漂移。 */
+const ErrorNote: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="flex items-start gap-2.5 border border-[var(--highlight-border)] bg-[var(--highlight-bg)] p-4 text-[13px] leading-relaxed text-[var(--highlight-text)]">
+    <AlertCircle className="mt-px h-4 w-4 shrink-0" />
+    <span>{children}</span>
+  </div>
+);
+
 export const BookSelectorModal: React.FC = () => {
   const { isBookCatalogOpen, setBookCatalogOpen, setCurrentBook } = useReaderStore();
 
-  const [activeTab, setActiveTab] = useState<'builtin' | 'gutendex' | 'paste'>('builtin');
+  const [activeTab, setActiveTab] = useState<'builtin' | 'gutendex' | 'paste' | 'file'>('builtin');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GutendexBookResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -39,11 +52,49 @@ export const BookSelectorModal: React.FC = () => {
   const [hasCustomContent, setHasCustomContent] = useState(false);
   const customContentRef = useRef<HTMLTextAreaElement>(null);
 
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   if (!isBookCatalogOpen) return null;
 
-  const handleSelectBuiltin = (book: Book) => {
+  /**
+   * 选定一本书的**唯一**出口：进阅读器 + 存到本地。
+   *
+   * 保存失败必须说出来。不存的话刷新后这本书就没了，而界面会假装一切正常 —— 与
+   * `VocabularyModal` 处理导入失败一样用 alert。内置样书的正文就在 bundle 里，
+   * `saveBook` 会直接跳过它。
+   */
+  const openBook = async (book: Book) => {
     setCurrentBook(book);
     setBookCatalogOpen(false);
+    if (!(await saveBook(book))) {
+      window.alert(
+        '这本书没能保存到本地，刷新页面后需要重新导入。\n（正文太大、或浏览器禁用了本地数据库时会出现。）',
+      );
+    }
+  };
+
+  const handleSelectBuiltin = (book: Book) => {
+    void openBook(book);
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // 先把 input 的值清掉：否则再选同一个文件不会触发 change，看起来像没反应。
+    event.target.value = '';
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportError(null);
+    try {
+      await openBook(await readBookFile(file));
+    } catch (error) {
+      // 解析失败时书架保持打开，错误就地显示 —— 这样能直接换一个文件重试。
+      setImportError(error instanceof Error ? error.message : '这个文件读不出来。');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleSearchGutendex = async (event?: React.FormEvent) => {
@@ -70,8 +121,7 @@ export const BookSelectorModal: React.FC = () => {
     setSearchError(null);
     try {
       const book = await loadBookFromGutendex(item);
-      setCurrentBook(book);
-      setBookCatalogOpen(false);
+      await openBook(book);
     } catch (err) {
       const reason = err instanceof Error ? err.message : '网络或跨域限制';
       setSearchError(`加载读物失败：${reason}`);
@@ -104,8 +154,7 @@ export const BookSelectorModal: React.FC = () => {
       chapters,
     };
 
-    setCurrentBook(customBook);
-    setBookCatalogOpen(false);
+    void openBook(customBook);
   };
 
   return (
@@ -139,6 +188,7 @@ export const BookSelectorModal: React.FC = () => {
             [
               { id: 'builtin', label: '经典名著' },
               { id: 'gutendex', label: 'Gutendex 搜索' },
+              { id: 'file', label: '文件' },
               { id: 'paste', label: '粘贴' },
             ] as const
           ).map((tab) => (
@@ -219,12 +269,7 @@ export const BookSelectorModal: React.FC = () => {
                 </button>
               </form>
 
-              {searchError && (
-                <div className="flex items-start gap-2.5 border border-[var(--highlight-border)] bg-[var(--highlight-bg)] p-4 text-[13px] leading-relaxed text-[var(--highlight-text)]">
-                  <AlertCircle className="mt-px h-4 w-4 shrink-0" />
-                  <span>{searchError}</span>
-                </div>
-              )}
+              {searchError && <ErrorNote>{searchError}</ErrorNote>}
 
               {isLoadingBook && (
                 <div className="flex flex-col items-center gap-2.5 py-10 text-[var(--text-muted)]">
@@ -259,7 +304,48 @@ export const BookSelectorModal: React.FC = () => {
             </div>
           )}
 
-          {/* 3. Paste custom text */}
+          {/* 3. Import a file */}
+          {activeTab === 'file' && (
+            <div className="space-y-4">
+              <p className="text-[13px] leading-relaxed text-[var(--text-muted)]">
+                支持 TXT / Markdown / HTML / EPUB。EPUB 按它自己声明的章节顺序分章；
+                其余格式按 CHAPTER I.、Letter 2 这类标题分章，认不出来就按词数均分。
+              </p>
+
+              {/* 真实 input 藏起来，用下面的按钮触发 —— 与词汇库导入同一写法。 */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={IMPORT_ACCEPT}
+                onChange={handleImportFile}
+                className="hidden"
+                aria-hidden="true"
+                tabIndex={-1}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                className={`${BTN_PRIMARY} w-full`}
+              >
+                {isImporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                <span>{isImporting ? '正在解析…' : '选择文件'}</span>
+              </button>
+
+              {importError && <ErrorNote>{importError}</ErrorNote>}
+
+              <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+                导入的书会存进浏览器本地（IndexedDB），刷新后仍在。
+                PDF 暂不支持 —— 它抽出的文本质量通常很差，扫描件更是完全抽不出文字。
+              </p>
+            </div>
+          )}
+
+          {/* 4. Paste custom text */}
           {activeTab === 'paste' && (
             <div className="space-y-5">
               <div>

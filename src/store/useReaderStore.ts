@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Book, ReadingProgress } from '../types/reader';
+import { lastReadBookId, loadLastReadBook } from '../services/bookStorage';
 import { paginateText, WORDS_PER_PAGE } from '../utils/tokenizer';
 
 const PROGRESS_STORAGE_KEY = 'language_reader_progress';
@@ -80,6 +81,16 @@ interface ReaderState {
 
   // Actions
   setCurrentBook: (book: Book, startChapter?: number, startPage?: number) => void;
+  /**
+   * 尝试恢复上次读的那本书（正文存在 IndexedDB 里）。返回是否成功 ——
+   * 调用方据此决定要不要退回内置样书。
+   */
+  restoreLastBook: () => Promise<boolean>;
+  /**
+   * 进度表里最后读的那本书的 id —— **与正文是否还在存储里无关**。
+   * 内置样书的正文在 bundle 里、从不入库，所以恢复它们时只能靠这个 id 找回来。
+   */
+  lastReadBookIdFromProgress: () => string | null;
   setChapterIndex: (index: number) => void;
   setPageIndex: (index: number) => void;
   setPages: (pages: string[]) => void;
@@ -100,7 +111,11 @@ interface ReaderState {
 const loadSavedProgress = (): Record<string, ReadingProgress> => {
   try {
     const raw = localStorage.getItem(PROGRESS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    // `JSON.parse` 可以返回 null、数字或字符串，而所有调用方都当对象用 ——
+    // 一份被改坏的 localStorage 会让 `Object.entries(null)` 抛异常、阅读器白屏。
+    // 边界处挡住它，和 normalizeWordMap 校验词库值是同一个道理。
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, ReadingProgress>) : {};
   } catch {
     return {};
   }
@@ -222,6 +237,25 @@ export const useReaderStore = create<ReaderState>((set, get) => {
         updatedAt: Date.now(),
       });
     },
+
+    /**
+     * 恢复上次那本书。**只在这里读**，写（保存正文）由选书的地方负责 ——
+     * 见 `bookStorage.saveBook` 的注释：写失败必须让用户看见，而那个提示属于有 UI 的那一层。
+     *
+     * 读失败不算故障：拿不到就退回内置样书，与「第一次打开」没有区别。
+     */
+    restoreLastBook: async () => {
+      if (get().currentBook) return false;
+
+      const book = await loadLastReadBook(loadSavedProgress());
+      // 再查一次：await 期间用户完全可能已经从书架里打开了另一本。
+      if (!book || get().currentBook) return false;
+
+      get().setCurrentBook(book);
+      return true;
+    },
+
+    lastReadBookIdFromProgress: () => lastReadBookId(loadSavedProgress()),
 
     setChapterIndex: (index: number) => {
       const { currentBook } = get();
