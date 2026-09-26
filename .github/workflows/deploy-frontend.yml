@@ -56,20 +56,58 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
 
+      # Validates the configured backend origin **without printing it**.
+      #
+      # The Variable holds the origin base64-encoded (`API_BASE_URL_ENC`), not in plain
+      # text, for two reasons: the value lands in this build and therefore in the public
+      # bundle, and — less obviously — a non-secret variable's value is echoed verbatim
+      # into this job log, which on a public repository is public too. Encoding it in the
+      # Variable is what keeps the address out of both. `DEPLOY.md` has the one-liner that
+      # produces the value.
+      #
+      # The check below exists because the failure mode is otherwise silent: a plain URL
+      # pasted in by mistake fails `atob`, `decodeApiBase` falls back to same-origin, and
+      # the site quietly ships with no backend at all. Failing the build is much louder.
+      - name: Check the backend origin
+        env:
+          ENCODED_ORIGIN: ${{ vars.API_BASE_URL_ENC }}
+        run: |
+          if [ -z "$ENCODED_ORIGIN" ]; then
+            echo "backend origin: not configured — this build will be same-origin, so it has no backend"
+            exit 0
+          fi
+          decoded="$(printf '%s' "$ENCODED_ORIGIN" | base64 -d 2>/dev/null || true)"
+          case "$decoded" in
+            https://*)
+              echo "backend origin: configured (https)"
+              ;;
+            '')
+              echo "::error::API_BASE_URL_ENC is not valid base64. Encode the origin first: printf '%s' 'https://your-host' | base64 -w0"
+              exit 1
+              ;;
+            http://*)
+              echo "::error::API_BASE_URL_ENC decodes to an http:// URL — it must be https, or the Pages page blocks every request as mixed content."
+              exit 1
+              ;;
+            *)
+              echo "::error::API_BASE_URL_ENC decodes to something that is not an http(s) URL."
+              exit 1
+              ;;
+          esac
+
       - name: Build
         env:
           # '/InputA' for a project site, empty for a user/org site — the config
           # normalises it and falls back to '/'.
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          # Read by src/services/apiBase.ts and compiled into the bundle, so it
-          # is a Variable, not a Secret. It must be https://: the Pages page is
-          # HTTPS, and a plain-http API is blocked as mixed content before CORS
-          # is ever consulted. Leave the variable unset to build a frontend with
-          # no backend — reading still works, Chinese definitions do not.
-          VITE_API_BASE: ${{ vars.API_BASE_URL }}
+          # Already encoded, so it is passed straight through. Never add a plaintext
+          # VITE_API_BASE here: Vite inlines whatever the code references, so a plain
+          # value would go straight back into the bundle the encoding exists to keep
+          # it out of.
+          VITE_API_BASE_ENC: ${{ vars.API_BASE_URL_ENC }}
         run: |
           echo "BASE_PATH=${BASE_PATH:-<unset, serving from the domain root>}"
-          echo "VITE_API_BASE=${VITE_API_BASE:-<unset, same-origin — this Pages build will have no backend>}"
+          echo "VITE_API_BASE_ENC=${VITE_API_BASE_ENC:+<set>}"
           npm run build
 
       - name: Check the built paths

@@ -65,6 +65,15 @@ const val DEFAULT_LINE_HEIGHT = 1.8f
 val FONT_SIZE_RANGE = 16..30
 
 /**
+ * 线上后端地址的 base64。**刻意不写成明文**，理由与 Web 版 `src/services/apiBase.ts` 里的
+ * `decodeApiBase` 相同：这个地址不该在公开仓库里一眼可见。
+ *
+ * ⚠️ **这是混淆，不是加密。** 解出来只要一行，APK 里也照样能搜到还原后的字符串。别把它
+ * 当安全措施。
+ */
+private const val DEFAULT_SERVER_BASE_URL_B64 = "aHR0cHM6Ly80My0xNjctMTk2LTQzLnNzbGlwLmlvLw=="
+
+/**
  * 后端地址的线上默认值 —— **release 构建**用的是它。
  *
  * debug 构建会被 app 模块的 `buildConfigField` 覆盖成 `http://10.0.2.2:8787/`
@@ -73,8 +82,15 @@ val FONT_SIZE_RANGE = 16..30
  *
  * 给一个真实的线上地址而不是留空，是为了装完就能用，不必先让用户找到设置页填地址。
  * 要连自己机器上的 server/，在设置页改即可 —— 那里存下的值优先于这个默认值。
+ *
+ * 用 `java.util.Base64` 而不是 `android.util.Base64`：这个模块不依赖 android，而
+ * `java.util.Base64` 从 Android API 26 起就有（minSdk 正是 26）。
+ *
+ * 解不出来不做运行期兜底：常量写错会让 NormalizeBaseUrlTest 立刻变红，而一个静默的
+ * 降级值（比如空串）反而会把问题推到发请求的那一刻。
  */
-const val DEFAULT_SERVER_BASE_URL = "https://43-167-196-43.sslip.io/"
+val DEFAULT_SERVER_BASE_URL: String =
+    String(java.util.Base64.getDecoder().decode(DEFAULT_SERVER_BASE_URL_B64))
 
 /**
  * 合法主机名或 IP 字面量，可带端口。只做**形状**校验，不做 DNS 解析。

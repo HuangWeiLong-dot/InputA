@@ -11,7 +11,7 @@
  * it dynamic would mean turning every module-level URL in the app into a lazy
  * function. Both `npm start` (single-origin: this same server hosts ./dist) and
  * `npm run dev` leave the variable unset, so `''` reproduces the pre-split
- * behaviour exactly; the GitHub Pages build sets VITE_API_BASE to the deployed
+ * behaviour exactly; the GitHub Pages build sets VITE_API_BASE_ENC to the deployed
  * backend origin instead.
  */
 
@@ -32,7 +32,7 @@ export interface BackendHealth {
  * default, so an unset variable reproduces the single-origin deployment exactly.
  *
  * A value without an http(s) scheme is refused rather than repaired: guessing
- * https for `inputa-api.duckdns.org` happens to be right and guessing for a bare
+ * https for `api.example.test` happens to be right and guessing for a bare
  * LAN host happens to be wrong, and a wrong guess surfaces in the browser as a
  * mixed-content block that is indistinguishable from a CORS failure — so the
  * mistake would be debugged in the wrong place. Trailing slashes are stripped so
@@ -42,15 +42,41 @@ export function normalizeApiBase(raw: string | undefined): string {
   const trimmed = (raw ?? '').trim().replace(/\/+$/, '');
   if (!trimmed) return '';
   if (!/^https?:\/\//i.test(trimmed)) {
+    // 刻意不打印那个值：这条分支在生产构建里也会走到，而地址不该出现在控制台里。
     console.warn(
-      `[backend] VITE_API_BASE="${trimmed}" is not an http(s) origin — ignoring it and using same-origin requests.`,
+      '[backend] the configured backend origin is not an http(s) URL — using same-origin requests.',
     );
     return '';
   }
   return trimmed;
 }
 
-export const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE);
+/**
+ * 解出构建时以 base64 注入的后端地址（`VITE_API_BASE_ENC`）。
+ *
+ * ⚠️ **这是混淆，不是加密。** `atob` 一秒就能还原；任何人打开 DevTools 的 Network 面板
+ * 也照样看得到真实地址。它唯一的作用是让 `grep sslip` / `grep 43.167` 在公开的仓库与
+ * 构建产物里都搜不到。别把它当成安全措施 —— 真正保护后端的是服务端不持 AI key、
+ * 8787 不对公网开放这两件事。
+ *
+ * 为什么编码放在构建期而不是把 base64 直接写进源码：源码要能被人读懂，注入的形态要藏
+ * 起来，分开做这两件事才都成立。
+ */
+export function decodeApiBase(encoded: string | undefined): string {
+  const trimmed = (encoded ?? '').trim();
+  if (!trimmed) return '';
+  try {
+    // atob 只认 Latin-1，而 URL 全是 ASCII，所以够用。
+    return atob(trimmed);
+  } catch {
+    console.warn(
+      '[backend] the injected backend origin is not valid base64 — using same-origin requests.',
+    );
+    return '';
+  }
+}
+
+export const API_BASE = normalizeApiBase(decodeApiBase(import.meta.env.VITE_API_BASE_ENC));
 
 /**
  * Absolute URL for a backend route.
@@ -112,15 +138,22 @@ async function probe(): Promise<BackendHealth> {
     if (!res.ok) {
       // A cross-origin failure is opaque — "Failed to fetch" covers DNS, TLS and
       // a missing Access-Control-Allow-Origin alike — so name what was tried.
-      // Silent unless a remote base is configured: in the single-origin build
-      // this is just `npm run server` not being started yet, which is normal.
-      if (API_BASE) console.warn(`[backend] health probe got HTTP ${res.status} from ${url}`);
+      //
+      // Development only. Two reasons: in the single-origin build this is just
+      // `npm run server` not being started yet, which is normal; and a production
+      // build must not print the backend origin to the console — keeping it out of
+      // anything greppable is the entire point of the base64 hop above.
+      if (import.meta.env.DEV && API_BASE) {
+        console.warn(`[backend] health probe got HTTP ${res.status} from ${url}`);
+      }
       return { ok: false };
     }
     const data = (await res.json()) as BackendHealth;
     return data?.ok === true ? data : { ok: false };
   } catch (error) {
-    if (API_BASE) console.warn(`[backend] health probe failed: ${url}`, error);
+    if (import.meta.env.DEV && API_BASE) {
+      console.warn(`[backend] health probe failed: ${url}`, error);
+    }
     return { ok: false };
   } finally {
     clearTimeout(timer);

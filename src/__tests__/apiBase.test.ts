@@ -1,26 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { normalizeApiBase } from '../services/apiBase';
+import { decodeApiBase, normalizeApiBase } from '../services/apiBase';
 
 /**
  * The backend origin is build-time configuration, and `''` means same-origin —
  * the single-origin build that `npm start` and `npm run dev` both run as. These
- * tests pin the two halves that matter:
+ * tests pin the three parts that matter:
  *
+ *   - `decodeApiBase` turns the base64 the CI injects back into an origin, and
+ *     refuses anything that is not valid base64 instead of throwing.
  *   - with the variable unset, apiUrl()/isBackendUrl() are byte-for-byte what
  *     every call site did literally before the split. That identity is the
  *     no-regression promise for the self-hosted build.
  *   - with it set, backend URLs become absolute and the predicate still tells
  *     our backend apart from the third-party upstreams.
  *
- * The second half needs a fresh module graph: API_BASE is a module constant read
- * at import time.
+ * The last two need a fresh module graph: API_BASE is a module constant read at
+ * import time.
+ *
+ * The value is base64 only so the address is not greppable in the published bundle —
+ * it is obfuscation, not encryption, and nothing here pretends otherwise.
  */
 
-/** Loads apiBase.ts with VITE_API_BASE set to `base`; `undefined` means unset. */
+/** The CI side of the hop: `base64 -w0` (no line wrapping) of the origin. */
+function encodeLikeCi(value: string): string {
+  return btoa(value);
+}
+
+/** Loads apiBase.ts with the encoded variable set to `base`; `undefined` means unset. */
 async function loadApiBase(base?: string) {
   // Explicit '' rather than "leave it alone", so a machine-local .env.local
   // cannot change what these tests assert.
-  vi.stubEnv('VITE_API_BASE', base ?? '');
+  vi.stubEnv('VITE_API_BASE_ENC', base === undefined ? '' : encodeLikeCi(base));
   vi.resetModules();
   return import('../services/apiBase');
 }
@@ -47,13 +57,42 @@ describe('normalizeApiBase', () => {
 
   it('refuses a value with no http(s) scheme instead of guessing one', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    expect(normalizeApiBase('inputa-api.duckdns.org')).toBe('');
+    expect(normalizeApiBase('example.test')).toBe('');
     expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
   });
 });
 
-describe('same-origin build (VITE_API_BASE unset)', () => {
+describe('decodeApiBase', () => {
+  it('round-trips what the CI encodes', () => {
+    expect(decodeApiBase(encodeLikeCi('https://api.example.test'))).toBe('https://api.example.test');
+  });
+
+  it('treats unset and blank values as same-origin', () => {
+    expect(decodeApiBase(undefined)).toBe('');
+    expect(decodeApiBase('')).toBe('');
+    expect(decodeApiBase('   ')).toBe('');
+  });
+
+  it('refuses invalid base64 without throwing', () => {
+    // atob throws on a malformed string; an unhandled throw here would break the
+    // whole module graph at import time, so it has to be caught.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(decodeApiBase('not base64 !!!')).toBe('');
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('does not print the decoded value when it is rejected downstream', () => {
+    // 这条与上一条配对：地址不该出现在控制台里（生产构建同样会走到这条分支）。
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    normalizeApiBase('ftp://api.example.test');
+    expect(warn).toHaveBeenCalledWith(expect.not.stringContaining('api.example.test'));
+    warn.mockRestore();
+  });
+});
+
+describe('same-origin build (the encoded variable unset)', () => {
   it('leaves backend paths exactly as the call sites wrote them', async () => {
     const { API_BASE, apiUrl, isBackendUrl } = await loadApiBase();
     expect(API_BASE).toBe('');
@@ -67,21 +106,21 @@ describe('same-origin build (VITE_API_BASE unset)', () => {
   });
 });
 
-describe('split build (VITE_API_BASE set)', () => {
+describe('split build (the encoded variable set)', () => {
   it('prefixes backend paths with the configured origin', async () => {
-    const { API_BASE, apiUrl } = await loadApiBase('https://inputa-api.duckdns.org/');
-    expect(API_BASE).toBe('https://inputa-api.duckdns.org');
-    expect(apiUrl('/api/health')).toBe('https://inputa-api.duckdns.org/api/health');
+    const { API_BASE, apiUrl } = await loadApiBase('https://api.example.test/');
+    expect(API_BASE).toBe('https://api.example.test');
+    expect(apiUrl('/api/health')).toBe('https://api.example.test/api/health');
     expect(apiUrl('/api/dict?word=air%20bed')).toBe(
-      'https://inputa-api.duckdns.org/api/dict?word=air%20bed',
+      'https://api.example.test/api/dict?word=air%20bed',
     );
   });
 
   it('keeps third-party upstreams out of isBackendUrl', async () => {
-    const { isBackendUrl } = await loadApiBase('https://inputa-api.duckdns.org');
-    expect(isBackendUrl('https://inputa-api.duckdns.org/api/dict?word=very')).toBe(true);
+    const { isBackendUrl } = await loadApiBase('https://api.example.test');
+    expect(isBackendUrl('https://api.example.test/api/dict?word=very')).toBe(true);
     // Segment-bounded, so a lookalike host is not mistaken for ours.
-    expect(isBackendUrl('https://inputa-api.duckdns.org.evil.test/api/dict')).toBe(false);
+    expect(isBackendUrl('https://api.example.test.evil.test/api/dict')).toBe(false);
     // And a same-origin-looking path is no longer ours once a base is set.
     expect(isBackendUrl('/api/dict?word=very')).toBe(false);
     expect(isBackendUrl('https://api.dictionaryapi.dev/api/v2/entries/en/very')).toBe(false);

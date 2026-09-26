@@ -21,8 +21,8 @@ android {
         // 而且 java.time 这类不用再 desugar。
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         // 留空＝用 :domain 的 DEFAULT_SERVER_BASE_URL（线上地址），只有 debug 构建在
         // 下面把它覆盖成模拟器地址。线上值刻意不在这里再写一份：Gradle 读不到 Kotlin 的

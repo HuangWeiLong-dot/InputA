@@ -141,11 +141,19 @@ constrains future code changes.
 unset, and that is the configuration the README documents. So:
 
 - `src/services/apiBase.ts` is the only place the backend origin is decided. `API_BASE` is
-  `''` unless `VITE_API_BASE` was set at build time, and with it empty `apiUrl(path)` returns
-  `path` unchanged while `isBackendUrl(url)` *is* `url.startsWith('/api/')`. Every
+  `''` unless `VITE_API_BASE_ENC` was set at build time, and with it empty `apiUrl(path)`
+  returns `path` unchanged while `isBackendUrl(url)` *is* `url.startsWith('/api/')`. Every
   module-level URL in the app goes through `apiUrl` — do not "simplify" that indirection
   away, and do not re-introduce a literal `/api/...` request path, or the Pages build
   silently stops reaching the backend rather than failing.
+- The origin travels **base64-encoded** (`VITE_API_BASE_ENC`, decoded by `decodeApiBase`),
+  and the CI job encodes it at build time so the plain value never reaches `vite build`; the
+  Android port does the same to `DEFAULT_SERVER_BASE_URL`. This is **obfuscation, not
+  security** — `atob` reverses it and DevTools shows the real address on every request. It
+  exists so a public repo and a public artifact are not greppable for the host, and nothing
+  should be built on top of it that assumes the address is secret. Never pass a plaintext
+  `VITE_API_BASE` to the build: Vite inlines whatever the code references, so adding one
+  would put the address straight back into the bundle.
 - `vite.config.ts` takes `base` from `BASE_PATH` and defaults to `'/'`, which is what the SPA
   fallback in `server/index.js` assumes. Hardcoding `/InputA/` breaks `npm start` in a way
   that yields a blank page and no error: the fallback answers `index.html` as `text/html` for

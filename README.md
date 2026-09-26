@@ -332,7 +332,7 @@ ANDROID_SERIAL=<序列号> ./gradlew :app:installDebug    # 序列号见 adb dev
 | 构建 | 默认地址 | 说明 |
 | --- | --- | --- |
 | `assembleDebug` | `http://10.0.2.2:8787/` | `10.0.2.2` 是模拟器内部指向宿主机的特殊地址 —— 开发时后端跑在自己机器上（`npm run server`），用默认值即可 |
-| `assembleRelease` | `https://43-167-196-43.sslip.io/` | 部署好的线上后端，装完即用 |
+| `assembleRelease` | 部署好的线上后端 | 装完即用，不需要配置。地址在源码里以 base64 存放（见 `ReaderSettings.kt`），不在文档里重复 |
 
 **真机**上 `10.0.2.2` 不通（那个地址只对模拟器有意义），要在设置页填开发机的**局域网 IP**（Windows 上用 `ipconfig` 查，形如 `192.168.1.20`）。手机和电脑必须在同一个 Wi-Fi 下。想连线上后端就直接用 release 的默认值。
 

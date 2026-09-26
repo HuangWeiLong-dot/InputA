@@ -2,6 +2,7 @@ package com.inputa.reader.domain.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -88,10 +89,11 @@ class NormalizeBaseUrlTest {
 
     @Test
     fun `the default points at the deployed backend`() {
-        // 这个常量是 release 构建用的线上地址；debug 构建由 app 模块的 buildConfigField
-        // 覆盖成模拟器里的 10.0.2.2（见 app/build.gradle.kts）。
-        assertEquals("https://43-167-196-43.sslip.io/", DEFAULT_SERVER_BASE_URL)
-        // 默认值本身必须已经是规范化形式，否则第一次读出来就不是规范形式。
+        // 这个常量在源码里以 base64 存放（见 ReaderSettings.kt 的注释），所以这里不重写
+        // 明文 —— 否则公开仓库里等于白改了。只钉住两件真正要保证的事：它是 https，
+        // 且本身已经是规范化形式（否则第一次读出来就不是规范形式）。
+        // debug 构建由 app 模块的 buildConfigField 覆盖成模拟器里的 10.0.2.2。
+        assertTrue(DEFAULT_SERVER_BASE_URL.startsWith("https://"))
         assertEquals(DEFAULT_SERVER_BASE_URL, normalizeBaseUrl(DEFAULT_SERVER_BASE_URL))
     }
 }
