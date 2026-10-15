@@ -5,6 +5,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.inputa.reader.domain.bionic.Bionic
 import com.inputa.reader.domain.model.WordStatus
 import com.inputa.reader.domain.text.Tokenizer
+import com.inputa.reader.domain.vocab.WordLevels
 import com.inputa.reader.ui.theme.ThemePalettes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -18,8 +19,9 @@ import org.robolectric.RobolectricTestRunner
  * 的字符区间。差一个字符，当前词的描边就会框住隔壁的词 —— 而光看代码看不出来，
  * 在设备上也只表现为「偶尔框错」。
  *
- * 底色的语义同样在这里钉住：**未收录的词按生词着色，但不写词库**。这条是只关于显示的
- * 规则，而它正是翻页收录规则能正常工作的前提（见 WordLevels 的类注释）。
+ * 底色的语义同样在这里钉住：**未收录的词不填色**（正文里改画中性灰虚线），也**不写
+ * 词库**。这条是只关于显示的规则，而它正是翻页收录规则能正常工作的前提（见 WordLevels
+ * 的类注释）。
  */
 @RunWith(RobolectricTestRunner::class)
 class WordParagraphTest {
@@ -116,12 +118,16 @@ class WordParagraphTest {
     }
 
     /**
-     * 这条是「只关于显示」那条规则的守门人：未收录的词**看起来**像 5 级生词，
-     * 但词库里没有任何记录。点击它才算「用户判断过」。
+     * 这条是「只关于显示」那条规则的守门人：未收录的词**不填色**（正文里改画一条
+     * 中性灰虚线，见 [WordLevels.isUnfiled]），但词库里没有任何记录。点击它才算
+     * 「用户判断过」。
+     *
+     * 它曾经是「未收录看起来像 5 级生词」，那样读者分不清"还没处理的词"和"自己标成
+     * 5 级的词" —— 所以断言必须是"没有填充"，不是"等于 5 级的填充"。
      */
     @Test
-    fun `an uncollected word is painted as the newest level`() {
-        assertEquals(tokens.levelBackground(WordStatus.L5), fillOf("beginning"))
+    fun `an uncollected word gets no fill`() {
+        assertNull(fillOf("beginning"))
     }
 
     @Test
@@ -146,14 +152,11 @@ class WordParagraphTest {
     // ---------------------------------------------------------------- 当前词
 
     /**
-     * **只有「没有底色」的当前词才补一块 accent-soft 填充。**
-     *
-     * 而「没有底色」实际上只有已掌握一种情况 —— 未收录的词是有底色的（5 级），
-     * 所以点开一个没收录过的词时，它保持 5 级底色，只多一圈描边。
-     * 这一点容易反直觉，Web 版是靠两个 Tailwind 背景工具类的样式表顺序才区分开的。
+     * **accent-soft 的兜底只留给已掌握的词** —— 它是唯一"没有底色、也没有虚线"的状态，
+     * 不补一块填充就完全看不到当前词在哪。
      */
     @Test
-    fun `the active word gets the accent fill only when it has no tint`() {
+    fun `the active word gets the accent fill only when it is mastered`() {
         assertEquals(
             tokens.accentSoft,
             fillOf("was", statuses = mapOf("was" to WordStatus.MASTERED), active = "was"),
@@ -170,12 +173,15 @@ class WordParagraphTest {
     }
 
     /**
-     * 未收录的当前词保持它的 5 级底色，而不是被换成 accent-soft ——
-     * 因为「未收录」在显示上就是一个有色阶的身份（只关于显示的规则）。
+     * 未收录的当前词**不**补 accent-soft。
+     *
+     * 这条是这次改动最容易做错的地方：兜底条件若写成「没有填充」（而不是「已掌握」），
+     * 未收录的词就会被填上 —— 而读者点开一个词的时候，正是最需要看清"这个词我还没处理过"
+     * 的时候。填充一上，它立刻长得像已收录的词。
      */
     @Test
-    fun `an uncollected active word keeps its newest-level tint`() {
-        assertEquals(tokens.levelBackground(WordStatus.L5), fillOf("was", active = "was"))
+    fun `an uncollected active word is not filled`() {
+        assertNull(fillOf("was", active = "was"))
     }
 
     /** 当前词的标记不该外溢到相邻的词上。 */
@@ -185,7 +191,8 @@ class WordParagraphTest {
 
         assertEquals(tokens.accentSoft, fillOf("was", statuses = statuses, active = "was"))
         assertEquals(tokens.levelBackground(WordStatus.L2), fillOf("alice", statuses = statuses, active = "was"))
-        assertEquals(tokens.levelBackground(WordStatus.L5), fillOf("beginning", statuses = statuses, active = "was"))
+        // beginning 未收录：邻居里唯一一个不填色的，也不该因为旁边那个词是当前词而变。
+        assertNull(fillOf("beginning", statuses = statuses, active = "was"))
     }
 
     // ---------------------------------------------------------------- 仿生

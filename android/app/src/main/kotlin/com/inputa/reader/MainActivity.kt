@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
                         onPageSettled = reader::onPageSettled,
                         onPrev = reader::prevPage,
                         onNext = reader::nextPage,
+                        onFinishReading = reader::finishReading,
                         onDismissWord = reader::clearActiveWord,
                         onRetryLookup = reader::retryLookup,
                         onSetStatus = reader::setStatus,

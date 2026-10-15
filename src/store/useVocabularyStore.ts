@@ -24,10 +24,23 @@ interface VocabularyState {
   markMastered: (word: string) => void;
   removeWord: (word: string) => void;
   /**
-   * 翻页时把本页没被点击的词记为「掌握」，返回新增的条数。
-   * 已经收录的词（1-5 级或已掌握）不会被覆盖。
+   * 翻页时把本页没被点击的词记为「掌握」，返回**本次真正写入的那批词**。
+   * 已经收录的词（1-5 级或已掌握）不会被覆盖，也就不在返回值里。
+   * 返回词表而不是条数：撤销要知道是哪几个词，条数取 .length 即可。
    */
-  markPageWordsAsMastered: (pageWords: string[]) => number;
+  markPageWordsAsMastered: (pageWords: string[]) => string[];
+  /**
+   * 撤销一次自动收录（翻页或「完成阅读」）。
+   *
+   * 只删当前状态仍是 'mastered' 的词 —— 读者在这之后手动改成 1-5 级的词不能删，
+   * 那是明确的新意图。
+   *
+   * 这是对 Android 版的**有意简化**：那边 `undoMastery` 靠 `pageTurnStamp` +
+   * `updatedAt` 双重校验（见 `VocabularyDao.deletePageTurned`），能认出"这一行
+   * 自那次翻页后是否被改过"。Web 侧的存储是一整块 JSON、没有行时间戳，用
+   * 「现在还是不是 mastered」这个状态守卫达到同等效果，不必为此新增字段。
+   */
+  undoMasteredWords: (words: string[]) => void;
   getWordStatus: (word: string) => WordStatus | 'unknown';
   clearVocabulary: () => void;
   importVocabulary: (data: unknown) => void;
@@ -114,7 +127,7 @@ export const useVocabularyStore = create<VocabularyState>((set, get) => ({
   markPageWordsAsMastered: (pageWords: string[]) => {
     const currentWords = get().words;
     const nextWords = { ...currentWords };
-    let newlyMarkedCount = 0;
+    const newlyMastered: string[] = [];
 
     for (const raw of pageWords) {
       const clean = normalizeWord(raw);
@@ -125,15 +138,35 @@ export const useVocabularyStore = create<VocabularyState>((set, get) => ({
       if (nextWords[clean] !== undefined) continue;
 
       nextWords[clean] = 'mastered';
-      newlyMarkedCount++;
+      newlyMastered.push(clean);
     }
 
-    if (newlyMarkedCount > 0) {
+    if (newlyMastered.length > 0) {
       persistWords(nextWords);
       set({ words: nextWords });
     }
 
-    return newlyMarkedCount;
+    return newlyMastered;
+  },
+
+  undoMasteredWords: (words: string[]) => {
+    const nextWords = { ...get().words };
+    let removed = 0;
+
+    for (const raw of words) {
+      const clean = normalizeWord(raw);
+      // Still 'mastered' means nothing has touched it since the turn; anything
+      // else is the reader's own later judgement and stays.
+      if (nextWords[clean] !== 'mastered') continue;
+
+      delete nextWords[clean];
+      removed++;
+    }
+
+    if (removed > 0) {
+      persistWords(nextWords);
+      set({ words: nextWords });
+    }
   },
 
   getWordStatus: (word: string) => {

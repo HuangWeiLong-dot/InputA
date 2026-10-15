@@ -90,6 +90,14 @@ data class ReaderUiState(
     val masteryBatch: MasteryBatch? = null,
     /** 跨多页快速滑动跳过的页数。非空时提示「已跳过 N 页，未自动记为已掌握」。 */
     val skippedPages: Int? = null,
+    /**
+     * 本次会话里被读者按过「完成阅读」的书。
+     *
+     * 按书 id 记而不是记一个布尔值：换一本书它自然就不成立了，不必去每个"打开书"
+     * 的路径上清一遍。只活在内存里 —— 「在哪一页」是进度，而"这本书我读完了"不是
+     * 一个需要跨会话记住的事实（[open] 里在换书时清掉）。
+     */
+    val finishedBookId: String? = null,
     /** 当前打开的覆盖层。**至多一个** —— 那是类型层面的事实，不用五个布尔值互斥。 */
     val overlay: Overlay? = null,
     /** 顶栏徽章上的两个数字，来自一条 `GROUP BY` 而不是整张表。 */
@@ -102,6 +110,30 @@ data class ReaderUiState(
     val hasNextPage: Boolean
         get() = pageIndex < pageCount - 1 || chapterIndex < chapterTitles.size - 1
     val hasPrevPage: Boolean get() = pageIndex > 0 || chapterIndex > 0
+
+    /** 全书最后一页，且这本书已经按过「完成阅读」。 */
+    val isBookFinished: Boolean get() = bookId.isNotEmpty() && bookId == finishedBookId
+
+    /**
+     * 底栏该出现哪几颗按钮。
+     *
+     * **章内一颗都不出现** —— 翻页全靠滑动（翻页器就铺在整屏上，见 [ReaderFooter]）。
+     * 这三个条件因此只在**章节边界**成立，而那正是滑动到不了的地方：翻页器只装当前章的
+     * 页面（[pages]），本章最后一页再往左滑是滑不动的。底栏这两颗按钮是
+     * [nextPage] / [prevPage] 里 `advanceChapter` 那条分支唯一的入口。
+     *
+     * **三个条件彼此独立，不是互斥的**：单页的章节同时是章首与章末，而单页的**末**章还会
+     * 再叠上 [showFinishButton]。写成 if/else 链会让「完成阅读」盖掉「上一章」，读者就
+     * 卡在最后一页退不回去 —— 而那一页的右边本来也滑不动。
+     *
+     * 放在这里而不是合成器里，是因为这些边界组合很容易写错（少一个条件读者就走进死路），
+     * 而合成器里的逻辑本仓库测不了；[ReaderUiState] 是纯数据类，可以直接跑普通单测。
+     */
+    val showPrevChapterButton: Boolean get() = pageIndex == 0 && hasPrevPage
+    val showNextChapterButton: Boolean get() = pageIndex == pageCount - 1 && hasNextPage
+
+    /** 全书最后一页。`pageCount > 0` 是真的有书可读，没书时不该冒出「完成阅读」。 */
+    val showFinishButton: Boolean get() = pageCount > 0 && !hasNextPage
 }
 
 /**
@@ -161,6 +193,8 @@ class ReaderViewModel @Inject constructor(
     private val lookupState = MutableStateFlow<WordLookupState>(WordLookupState.Idle)
     private val masteryBatch = MutableStateFlow<MasteryBatch?>(null)
     private val skippedPages = MutableStateFlow<Int?>(null)
+    /** 被按过「完成阅读」的那本书的 id。见 [ReaderUiState.finishedBookId]。 */
+    private val finishedBookId = MutableStateFlow<String?>(null)
     private val overlay = MutableStateFlow<Overlay?>(null)
     private val loading = MutableStateFlow(true)
 
@@ -229,6 +263,7 @@ class ReaderViewModel @Inject constructor(
         val pages: List<String>,
         val pageIndex: Int,
         val loading: Boolean,
+        val finishedBookId: String?,
     )
 
     /** 翻页与提示打包在一起，好让下面那个 combine 保持在五个参数以内。 */
@@ -252,8 +287,8 @@ class ReaderViewModel @Inject constructor(
         Notices(mastery, skipped)
     }
 
-    private val paging = combine(pagesFlow, pageIndex, loading) { pages, index, isLoading ->
-        Paging(pages, index, isLoading)
+    private val paging = combine(pagesFlow, pageIndex, loading, finishedBookId) { pages, index, isLoading, finished ->
+        Paging(pages, index, isLoading, finished)
     }
 
     private val reading = combine(notices, paging) { notice, page -> Reading(notice, page) }
@@ -299,6 +334,7 @@ class ReaderViewModel @Inject constructor(
             lookup = active.lookup,
             masteryBatch = notice.mastery,
             skippedPages = notice.skipped,
+            finishedBookId = paging.finishedBookId,
             overlay = chrome.overlay,
             counts = chrome.counts,
             settings = chrome.settings,
@@ -377,6 +413,25 @@ class ReaderViewModel @Inject constructor(
     }
 
     /**
+     * 底部「完成阅读」—— 最后一页上的「翻页」。
+     *
+     * 全书最后一页没有下一页，而 `onPageSettled` 只在页号真的变了时才写词库，所以没有
+     * 这个入口的话，最后一页未点击的词会永远留在「未收录」状态：读者读完了全书，界面上
+     * 却还剩一页虚线。
+     *
+     * 走的规则与翻页**完全相同** —— 直接复用 `masterOutgoingPage`，于是撤销、进度、
+     * 提示条（[MasteryNotice]，6 秒带「撤销」）全都不用另写。唯一的区别是后面不换章。
+     *
+     * 天然幂等：第二次点击时 `applyPageTurn` 在词库里找不到"缺席"的词，批次为空，
+     * 提示条不出现（按钮此时已经是「已读完」）。
+     */
+    fun finishReading() {
+        val index = pageIndex.value
+        finishedBookId.value = bookId.value
+        masterOutgoingPage(pagesFlow.value.getOrNull(index).orEmpty())
+    }
+
+    /**
      * 撤销一次翻页收录。
      *
      * 批次里带着时间戳，仓储只删**这两个条件都还匹配**的行 —— 所以读者在撤销窗口内
@@ -387,6 +442,10 @@ class ReaderViewModel @Inject constructor(
         masteryBatch.value = null
         viewModelScope.launch {
             val deleted = vocabulary.undoMastery(batch)
+            // 撤掉「完成阅读」写进去的词，就得同时把「已读完」也撤掉 —— 否则底栏那颗
+            // 按钮仍是禁用的「已读完」，而页面上又全是虚线，读者**没有**任何办法再收录
+            // 一次。一个点不动的按钮比提示错误更糟：它看起来只是"没事可做"。
+            if (deleted > 0) finishedBookId.value = null
             // 删掉的条数少于批次大小是正常的：说明读者在撤销窗口内手动改过其中某个词，
             // 那属于用户判断，不该被撤销覆盖。
             if (BuildConfig.DEBUG) Log.d(TAG, "undo: deleted $deleted of ${batch.count}")
@@ -635,6 +694,9 @@ class ReaderViewModel @Inject constructor(
         source.value = target
         loading.value = true
         pageIndex.value = 0
+        // 换书（或重新打开同一本）时忘掉上一次的「已读完」。放在这个唯一载入书籍的
+        // 地方，而不是 `finishedBookId` 的每个读取点上比 id。
+        finishedBookId.value = null
 
         val allTitles: List<String>
         when (target) {

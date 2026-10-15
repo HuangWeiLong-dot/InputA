@@ -4,7 +4,9 @@ import com.inputa.reader.domain.model.WordStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -104,8 +106,8 @@ class WordStatusMigrationTest {
     // ---------- 正文着色（只关于显示，不写词库） ----------
 
     @Test
-    fun `paints a word that was never collected as the newest level`() {
-        assertEquals(WordStatus.L5, WordLevels.highlightLevel(null))
+    fun `leaves a word that was never collected without a fill`() {
+        assertNull(WordLevels.highlightLevel(null))
     }
 
     @Test
@@ -118,6 +120,18 @@ class WordStatusMigrationTest {
     @Test
     fun `leaves a mastered word unhighlighted`() {
         assertNull(WordLevels.highlightLevel(WordStatus.MASTERED))
+    }
+
+    /**
+     * 未收录与已掌握都「没有底色」，所以光看 [WordLevels.highlightLevel] 分不出这两者
+     * —— 未收录曾经因此借用了 5 级生词的底色，读者看不出自己的标记有没有生效。
+     * [WordLevels.isUnfiled] 就是那个区别，未收录的词正文改画虚线。
+     */
+    @Test
+    fun `tells an uncollected word apart from a mastered one`() {
+        assertTrue(WordLevels.isUnfiled(null))
+        assertFalse(WordLevels.isUnfiled(WordStatus.MASTERED))
+        assertFalse(WordLevels.isUnfiled(WordStatus.L5))
     }
 
     @Test

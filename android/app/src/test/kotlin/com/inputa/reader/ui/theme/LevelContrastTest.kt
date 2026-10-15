@@ -5,6 +5,7 @@ import com.inputa.reader.domain.color.Contrast
 import com.inputa.reader.domain.model.WordStatus
 import com.inputa.reader.domain.vocab.WordLevels
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -135,15 +136,37 @@ class LevelContrastTest {
     }
 
     /**
-     * 未收录按 5 级着色、已掌握不着色 —— 这条规则由领域层的纯函数保证，
+     * 未收录与已掌握都不填色、已收录的按级填色 —— 这条规则由领域层的纯函数保证，
      * 这里只确认主题这一层**老老实实转发**了它，没有自己另写一套。
+     *
+     * 未收录那条断言不能写成「等于 L5 的底色」：那正是这次要拆掉的旧行为。
      */
     @Test
     fun `highlight levels pass through the domain rule unchanged`() {
         for (theme in ThemePalettes.all) {
-            assertEquals(theme.levelBackground(WordStatus.L5), theme.wordBackground(null))
+            assertNull(theme.wordBackground(null))
+            assertEquals(theme.levelBackground(WordStatus.L1), theme.wordBackground(WordStatus.L1))
             assertEquals(theme.levelBackground(WordStatus.L2), theme.wordBackground(WordStatus.L2))
+            assertEquals(theme.levelBackground(WordStatus.L5), theme.wordBackground(WordStatus.L5))
             assertNull(theme.wordBackground(WordStatus.MASTERED))
+        }
+    }
+
+    /**
+     * 未收录的虚线取各主题的 `--border-strong`，不与色阶的任何一档同值。
+     *
+     * 这里能验的只有「取值不同」—— 真正把两者分开的是**形式**（1px 虚线 vs 实心块），
+     * 像羊皮纸主题那种偏暖的中性色和色阶的色相其实挨得不远。但「不同值」这条仍然值得
+     * 钉住：它挡的是"顺手"把虚线颜色改回 `levelBackground(L5)` —— 那就是这次要拆掉的
+     * 旧行为本身。
+     */
+    @Test
+    fun `the unfiled underline is not a level colour`() {
+        for (theme in ThemePalettes.all) {
+            assertNotEquals(theme.borderStrong, theme.levelInk)
+            for (level in WordLevels.LEVELS) {
+                assertNotEquals(theme.borderStrong, theme.levelBackground(level))
+            }
         }
     }
 }

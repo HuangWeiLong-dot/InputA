@@ -68,6 +68,19 @@ object Radius {
     /** 卡片、面板、底部面板的上缘。 */
     val card: Dp = 14.dp
 
+    /**
+     * 正文里词汇色块的圆角。
+     *
+     * 比 [chip] 还小一档，因为它的尺度完全不同：词块就是字体内容盒那么大（一个
+     * 17sp 的衬线体词块大约二十来像素高），6dp 会圆得像个药丸，3dp 才看得出「有圆角」
+     * 又不伤字形。与 Web 版的 `--word-radius` 同值。
+     *
+     * **它是画出来的矩形的角，不是组件的形状** —— 不进 `MaterialTheme.shapes`，
+     * 也没有 `xxxShape` 兄弟：唯一的使用点在这里（`WordParagraph.drawWithContent`
+     * 的 `drawRoundRect`）。所以上面那条「不要写裸的 `shape =`」对它是另一回事。
+     */
+    val word: Dp = 3.dp
+
     val chipShape: CornerBasedShape = RoundedCornerShape(chip)
     val controlShape: CornerBasedShape = RoundedCornerShape(control)
     val cardShape: CornerBasedShape = RoundedCornerShape(card)

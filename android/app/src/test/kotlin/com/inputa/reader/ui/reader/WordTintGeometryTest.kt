@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.test.core.app.ApplicationProvider
 import com.inputa.reader.domain.model.WordStatus
 import com.inputa.reader.domain.text.Tokenizer
+import com.inputa.reader.domain.vocab.WordLevels
 import com.inputa.reader.ui.theme.ThemePalettes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -260,11 +261,15 @@ class WordTintGeometryTest {
      * 停在上一次排版时的状态。分开之后，颜色由绘制每帧现取，状态一变就对上 —— 而这条
      * 测试确保没人再把颜色塞回几何里（塞回去的最省事写法就是在 `wordBoxesOf` 里过滤掉
      * 没有颜色的词，那正是这条测试会失败的形态）。
+     *
+     * 三种状态各有一个词，而且**只有** 3 级那个有填充：未收录的词现在也不填色（它靠一条
+     * 虚线标出来），所以「没有填充」不再等于「不画出来」—— 判定与绘制必须继续分开。
      */
     @Test
     fun `geometry covers every word, tinted or not`() {
         val text = "Alice was beginning"
-        val statuses = mapOf("alice" to WordStatus.MASTERED, "was" to WordStatus.L3, "beginning" to WordStatus.MASTERED)
+        // beginning 故意缺席：缺席 = 未收录。
+        val statuses = mapOf("alice" to WordStatus.MASTERED, "was" to WordStatus.L3)
         val style = tokens.readingTextStyle(fontSizeSp, 1.8f)
         val layout = measurer.measure(AnnotatedString(text), style, constraints = Constraints(maxWidth = 4000))
         val lexed = Tokenizer.tokenize(text)
@@ -272,9 +277,11 @@ class WordTintGeometryTest {
         val boxes = wordBoxesOf(layout, buildParagraph(lexed, false).spans, measureFontBox(measurer, style, fontSizePx))
 
         assertEquals("三个词，一个方块都不该少", 3, boxes.size)
-        val tinted = boxes.count {
-            wordFill(it.span.token, statuses[it.span.token.cleanWord], null, tokens) != null
-        }
-        assertEquals("其中只有 was 是 3 级、该被画出来", 1, tinted)
+        val statusOf = { box: WordBox -> statuses[box.span.token.cleanWord] }
+        val tinted = boxes.count { wordFill(it.span.token, statusOf(it), null, tokens) != null }
+        val unfiled = boxes.count { WordLevels.isUnfiled(statusOf(it)) }
+
+        assertEquals("三个词里只有 was 是 3 级、该被填色", 1, tinted)
+        assertEquals("beginning 未收录，该画虚线", 1, unfiled)
     }
 }

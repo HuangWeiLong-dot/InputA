@@ -4,7 +4,14 @@ import { useVocabularyStore } from '../store/useVocabularyStore';
 import { tokenizeText, type Token } from '../utils/tokenizer';
 import { bionicSplit, isBionicEligible } from '../utils/bionic';
 import type { WordStatus } from '../types/reader';
-import { WORD_LEVEL_BG, WORD_LEVEL_LABELS, highlightLevel, isLevel, isUnknown } from '../utils/wordLevel';
+import {
+  WORD_LEVEL_BG,
+  WORD_LEVEL_LABELS,
+  WORD_UNFILED,
+  highlightLevel,
+  isLevel,
+  isUnknown,
+} from '../utils/wordLevel';
 
 interface ReaderAreaProps {
   onSelectWord: (word: string, surroundingSentence: string) => void;
@@ -14,19 +21,23 @@ interface ReaderAreaProps {
 /**
  * Word styling.
  *
- * A collected word is painted with its proficiency colour (1 lightest → 5
- * deepest), and a word never collected is painted with the deepest colour too
- * — the reader should see at a glance what is still unprocessed rather than
- * have to click around to find out (see highlightLevel). Only a mastered word
- * renders as plain text, so the page calms down as the reader works through it.
+ * Three outcomes, three looks:
+ *   - a collected word is painted with its proficiency colour (1 lightest → 5 deepest);
+ *   - a word never collected gets a neutral grey dashed underline and NO fill
+ *     (WORD_UNFILED) — the reader should see at a glance what is still unprocessed
+ *     (see highlightLevel), without an unprocessed word looking like one they
+ *     deliberately filed as 生词;
+ *   - a mastered word renders as plain text, so the page calms down as the reader
+ *     works through it.
  *
  * The background rules below are mutually exclusive on purpose: each word gets
  * exactly one of the level tint or WORD_IDLE, and the active marker only adds a
  * background when there is no level colour to compete with. Tailwind resolves
  * two background-color utilities by stylesheet order, not by intent, so overlap
- * here is a bug rather than a precedence the code can rely on.
+ * here is a bug rather than a precedence the code can rely on. The dashed
+ * underline is a border, not a background, so it may sit alongside WORD_IDLE.
  */
-const WORD_BASE = 'cursor-pointer transition-colors duration-100';
+const WORD_BASE = `cursor-pointer transition-colors duration-100 rounded-[var(--word-radius)]`;
 const WORD_IDLE = 'hover:bg-[var(--bg-hover)]';
 
 /**
@@ -190,24 +201,36 @@ export const ReaderArea: React.FC<ReaderAreaProps> = ({ onSelectWord, activeWord
 
                 const status: WordStatus | 'unknown' =
                   wordsState[token.cleanWord] ?? 'unknown';
-                // Two different questions, deliberately kept apart: `level` is
-                // what the word actually IS (only the tooltip may say it), while
-                // `tint` is what it should LOOK like — an uncollected word is
-                // painted as 生词 without being filed as one.
+                // Three different questions, deliberately kept apart: `level` is
+                // what the word actually IS (only the tooltip may say it), `tint`
+                // is the fill it gets, and `unfiled` is whether it was ever
+                // collected. Two of the three states fill nothing — `tint` alone
+                // cannot tell an uncollected word from a mastered one.
                 const level = isLevel(status) ? status : null;
                 const tint = highlightLevel(status);
-                const isActive = activeWord?.toLowerCase() === token.cleanWord;
-
-                let className = `${WORD_BASE} `;
-                className += tint ? `${WORD_LEVEL_BG[tint]} ` : `${WORD_IDLE} `;
-                if (isActive) {
-                  className += tint ? `${WORD_ACTIVE_OUTLINE} ` : `${WORD_ACTIVE} `;
-                }
-
                 // `isUnknown` rather than `status === 'unknown'`: the index
                 // signature says every key exists, so TS narrows `status` to
                 // WordStatus and rejects the comparison as impossible (TS2367).
-                const tooltip = isUnknown(status)
+                const unfiled = isUnknown(status);
+                const isActive = activeWord?.toLowerCase() === token.cleanWord;
+
+                let className = `${WORD_BASE} `;
+                if (tint) {
+                  className += `${WORD_LEVEL_BG[tint]} `;
+                } else if (unfiled) {
+                  className += `${WORD_UNFILED} ${WORD_IDLE} `;
+                } else {
+                  className += `${WORD_IDLE} `;
+                }
+                if (isActive) {
+                  // Only a mastered word has no mark of its own, so only it takes
+                  // the accent-soft fill. An uncollected word must NOT: filling it
+                  // would make the one word the reader is looking at look like a
+                  // filed one, exactly when they need to see it is not.
+                  className += tint || unfiled ? `${WORD_ACTIVE_OUTLINE} ` : `${WORD_ACTIVE} `;
+                }
+
+                const tooltip = unfiled
                   ? `未收录：${token.cleanWord}（点击查词）`
                   : level
                     ? `熟练度 ${level} · ${WORD_LEVEL_LABELS[level]}：${token.cleanWord}（点击查看释义）`

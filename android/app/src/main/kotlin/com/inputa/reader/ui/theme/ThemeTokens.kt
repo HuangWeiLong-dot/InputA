@@ -85,7 +85,12 @@ data class ThemeTokens(
     }
 
     /**
-     * 正文里一个词的底色：未收录按 5 级着色，已掌握不着色。
+     * 正文里一个词的填充色：已收录的按级着色，其余都**不填充**。
+     *
+     * 「其余」有两种，而且不能混为一谈：已掌握（MASTERED）什么都不画，未收录
+     * （[WordLevels.isUnfiled]）改用一条中性灰虚线 —— 由 `WordParagraph` 画，颜色取
+     * 本主题的 [borderStrong]。所以这个函数对两者都返回 null 是有意的，不是信息丢失：
+     * 调用点本来就拿着 `status`，要区分它们直接问 [WordLevels.isUnfiled]。
      *
      * 直接委托给领域层的 [WordLevels.highlightLevel] —— 「着色」这条规则只有一份实现，
      * 而且它在领域层是纯函数，连写词库的手段都没有。

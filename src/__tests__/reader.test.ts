@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { tokenizeText, extractWordsFromTokens, paginateText } from '../utils/tokenizer';
 import { useVocabularyStore } from '../store/useVocabularyStore';
-import { normalizeWordStatus, highlightLevel } from '../utils/wordLevel';
+import { normalizeWordStatus, highlightLevel, isUnknown } from '../utils/wordLevel';
 
 describe('Tokenizer Utility', () => {
   it('correctly splits text into words, punctuation, and contractions', () => {
@@ -131,8 +131,9 @@ describe('Vocabulary Store: levels and the page-turn rule', () => {
     const pageWords = ['alice', 'curiosity', 'wonderland', 'rabbit'];
     const newlyMarked = store.markPageWordsAsMastered(pageWords);
 
-    // Only the two never-seen words are filed.
-    expect(newlyMarked).toBe(2);
+    // Only the two never-seen words are filed, and they are named in the result
+    // so the caller can offer to undo exactly those two.
+    expect(newlyMarked).toEqual(['alice', 'rabbit']);
 
     const words = useVocabularyStore.getState().words;
     expect(words['curiosity']).toBe(5); // still "生词", the reader clicked it
@@ -145,8 +146,42 @@ describe('Vocabulary Store: levels and the page-turn rule', () => {
     const store = useVocabularyStore.getState();
     store.markMastered('already');
 
-    expect(store.markPageWordsAsMastered(['already', 'a', 'I', 'b'])).toBe(0);
+    expect(store.markPageWordsAsMastered(['already', 'a', 'I', 'b'])).toEqual([]);
     expect(useVocabularyStore.getState().words['already']).toBe('mastered');
+  });
+
+  /**
+   * The undo behind 「完成阅读」. What it must NOT do is delete a word the reader
+   * has since given a level of its own - that is a newer judgement than the one
+   * being undone.
+   */
+  it('undoes a page turn without touching a word the reader has re-levelled', () => {
+    const store = useVocabularyStore.getState();
+    const filed = store.markPageWordsAsMastered(['alice', 'rabbit', 'hatter']);
+    expect(filed).toEqual(['alice', 'rabbit', 'hatter']);
+
+    // After the turn, the reader decides 'hatter' is not a 掌握 word after all.
+    store.setWordLevel('hatter', 2);
+
+    store.undoMasteredWords(filed);
+
+    const words = useVocabularyStore.getState().words;
+    expect(words['alice']).toBeUndefined();
+    expect(words['rabbit']).toBeUndefined();
+    expect(words['hatter']).toBe(2); // survived: the reader's later choice wins
+    expect(store.getWordStatus('alice')).toBe('unknown');
+  });
+
+  it('never files a word, and is safe to call twice', () => {
+    const store = useVocabularyStore.getState();
+    const filed = store.markPageWordsAsMastered(['alice', 'rabbit']);
+
+    store.undoMasteredWords(filed);
+    // A second undo (the reader pressed 撤销, or an old batch is replayed) must
+    // not write anything back.
+    store.undoMasteredWords(filed);
+
+    expect(useVocabularyStore.getState().words).toEqual({});
   });
 
   it('removes a word from vocabulary completely', () => {
@@ -215,13 +250,21 @@ describe('Word status migration', () => {
 });
 
 /**
- * What the text paints, as opposed to what the store records. An uncollected
- * word is painted like 生词 but is not filed as one — it is still 'unknown' to
- * every other consumer, so the page-turn rule keeps working on it.
+ * What the text paints, as opposed to what the store records.
+ *
+ * The store's three states map onto three different looks: a level gets its
+ * colour, a mastered word gets nothing at all, and an uncollected word gets a
+ * neutral dashed underline (WORD_UNFILED) and no fill. The last two both report
+ * "no fill" here, which is exactly why `isUnknown` exists alongside this — a
+ * caller that only had `highlightLevel` could not tell them apart, and an
+ * uncollected word used to borrow 生词's colour and look filed.
+ *
+ * An uncollected word is still not filed by any of this: the page-turn rule
+ * keeps seeing it as uncollected, which is what the last test pins.
  */
 describe('Highlight level', () => {
-  it('paints a word that was never collected as 生词', () => {
-    expect(highlightLevel('unknown')).toBe(5);
+  it('leaves a word that was never collected without a fill', () => {
+    expect(highlightLevel('unknown')).toBeNull();
   });
 
   it('paints a collected word with the level it was given', () => {
@@ -234,9 +277,17 @@ describe('Highlight level', () => {
     expect(highlightLevel('mastered')).toBeNull();
   });
 
+  /** Both report no fill; only `isUnknown` says which one is which. */
+  it('tells an uncollected word apart from a mastered one', () => {
+    expect(isUnknown('unknown')).toBe(true);
+    expect(isUnknown('mastered')).toBe(false);
+    expect(isUnknown(3)).toBe(false);
+  });
+
   it('does not file anything — the word stays uncollected to every other reader', () => {
     const before = { ...useVocabularyStore.getState().words };
     highlightLevel('unknown');
+    isUnknown('unknown');
     expect(useVocabularyStore.getState().words).toEqual(before);
   });
 });

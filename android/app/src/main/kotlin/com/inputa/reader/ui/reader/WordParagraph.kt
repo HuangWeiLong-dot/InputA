@@ -11,10 +11,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -34,6 +37,8 @@ import com.inputa.reader.domain.model.WordStatus
 import com.inputa.reader.domain.text.Sentence
 import com.inputa.reader.domain.text.Token
 import com.inputa.reader.domain.text.Tokenizer
+import com.inputa.reader.domain.vocab.WordLevels
+import com.inputa.reader.ui.theme.Radius
 import com.inputa.reader.ui.theme.ThemeTokens
 
 /**
@@ -105,7 +110,23 @@ fun WordParagraph(
 
     val outlineOffset = 3.dp
     val outlineWidth = 2.dp
-    val fontSizePx = with(LocalDensity.current) { fontSizeSp.sp.toPx() }
+    // 未收录词的虚线。1dp 是因为它要和 Web 版的 border-bottom 同等轻重（浏览器
+    // 默认边框就是 1px）；2/2 的虚实比例接近浏览器画 dashed 边框的疏密。
+    val underlineWidth = 1.dp
+    val underlineDashOn = 2.dp
+    val underlineDashOff = 2.dp
+
+    val density = LocalDensity.current
+    val fontSizePx = with(density) { fontSizeSp.sp.toPx() }
+    val wordCornerPx = with(density) { Radius.word.toPx() }
+    val underlineWidthPx = with(density) { underlineWidth.toPx() }
+    // dashPathEffect 的长度参数是 px，所以要在这里换算；remember 是为了不给每帧
+    // 都新建一个 PathEffect（draw 在拖动滚动时每帧都跑）。
+    val underlineDash = remember(density) {
+        PathEffect.dashPathEffect(
+            with(density) { floatArrayOf(underlineDashOn.toPx(), underlineDashOff.toPx()) },
+        )
+    }
 
     val measurer = rememberTextMeasurer()
     // 键里刻意没有 lineHeight：结果本来就与它无关（见 [measureFontBox]），
@@ -136,12 +157,35 @@ fun WordParagraph(
                 // 排版时的状态，翻页后要等别的原因（提示条出现/消失改变约束）逼出一次重排才
                 // 对上。几何随排版走、颜色随状态走，两者各归其位，这类延迟就不存在了。
                 wordBoxes.forEach { box ->
-                    val color = wordFill(box.span.token, statuses[box.span.token.cleanWord], activeWord, tokens)
-                        ?: return@forEach
-                    drawRect(
+                    // 标点与空白永远不参与：未收录的判定对它们也成立（status 也是
+                    // null），不挡住的话每个逗号下面都会多一条虚线。
+                    val token = box.span.token
+                    if (!token.isWord) return@forEach
+                    val status = statuses[token.cleanWord]
+
+                    // 未收录：不填色，改画一条中性灰虚线（见 WordLevels.isUnfiled）。
+                    // 位置与 Web 版的 border-bottom 一致 —— 在字的内容盒**下方**而不是
+                    // 之内：rect 的下缘就是 descent 线，g/y/p 的下伸部正好够到那里，
+                    // 画在里面会划掉它们。
+                    if (WordLevels.isUnfiled(status)) {
+                        val y = box.rect.bottom + underlineWidthPx / 2
+                        drawLine(
+                            color = tokens.borderStrong,
+                            start = Offset(box.rect.left, y),
+                            end = Offset(box.rect.right, y),
+                            strokeWidth = underlineWidthPx,
+                            cap = StrokeCap.Butt,
+                            pathEffect = underlineDash,
+                        )
+                        return@forEach
+                    }
+
+                    val color = wordFill(token, status, activeWord, tokens) ?: return@forEach
+                    drawRoundRect(
                         color = color,
                         topLeft = Offset(box.rect.left, box.rect.top),
                         size = Size(box.rect.width, box.rect.height),
+                        cornerRadius = CornerRadius(wordCornerPx),
                     )
                 }
 
@@ -156,7 +200,7 @@ fun WordParagraph(
                             // 有底色的当前词会是「一块底色 + 一个错位的框」，
                             // 比没有描边还难看（见 [wordRect]）。
                             val rect = wordRect(result, box, fontBox)
-                            drawRect(
+                            drawRoundRect(
                                 color = tokens.accent,
                                 topLeft = Offset(
                                     rect.left - outlineOffset.toPx(),
@@ -166,6 +210,9 @@ fun WordParagraph(
                                     rect.width + outlineOffset.toPx() * 2,
                                     rect.height + outlineOffset.toPx() * 2,
                                 ),
+                                // 半径加上外扩的量，描边才与底色同心 —— 圆角不跟着
+                                // 外扩的话，四个角上的间距会明显比其他地方宽。
+                                cornerRadius = CornerRadius(wordCornerPx + outlineOffset.toPx()),
                                 style = Stroke(width = outlineWidth.toPx()),
                             )
                         }
@@ -228,12 +275,19 @@ internal fun buildParagraph(lexed: List<Token>, bionic: Boolean): ParagraphConte
  * 一个词该涂什么底色；null 表示不涂。
  *
  * `status` 与「该涂什么颜色」是两个不同的问题，这里刻意分开：
- * `status` 回答这个词**是什么**，底色回答它该**长什么样**。未收录（status 为 null）
- * 会被涂成生词，但词库里没有任何记录。
+ * `status` 回答这个词**是什么**，底色回答它该**长什么样**。
+ *
+ * 未收录（status 为 null）与已掌握都返回 null，但原因不同、画法也不同：未收录由
+ * 调用方改画一条虚线（[WordLevels.isUnfiled]），已掌握则什么都不画。这个函数只回答
+ * 「填不填色」，因为它的返回值装不下第三种情况。
  *
  * 当前词：有底色时保留自己的底色（位置由描边提示），无底色时才补一块 accent-soft。
  * Web 版是因为两个 Tailwind 背景工具类按样式表顺序解析才需要这个区分；Compose 没有
  * 这个歧义，但照搬以保持与 Web 的视觉可比。
+ *
+ * **accent-soft 的兜底只留给已掌握的词。** 早先它挂在「没有底色」上，未收录的词因此
+ * 也会被补上一块填充 —— 那正好毁掉这次改动：读者点开的那个词（最需要看清它是"未处理"
+ * 的时候）反而长得像已收录的。所以条件写成 `status == MASTERED` 而不是 `tint == null`。
  */
 internal fun wordFill(
     token: Token,
@@ -248,8 +302,8 @@ internal fun wordFill(
     val tint = tokens.wordBackground(status)
     val isActive = activeWord != null && activeWord == token.cleanWord
     return when {
-        isActive && tint == null -> tokens.accentSoft
         tint != null -> tint
+        isActive && status == WordStatus.MASTERED -> tokens.accentSoft
         else -> null
     }
 }

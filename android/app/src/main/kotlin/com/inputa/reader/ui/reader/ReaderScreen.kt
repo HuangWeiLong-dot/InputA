@@ -77,6 +77,8 @@ fun ReaderScreen(
     onPageSettled: (Int) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
+    /** 「完成阅读」—— 只有全书最后一页会出现。见 [ReaderViewModel.finishReading]。 */
+    onFinishReading: () -> Unit,
     onDismissWord: () -> Unit,
     onRetryLookup: () -> Unit,
     onSetStatus: (WordStatus) -> Unit,
@@ -134,7 +136,12 @@ fun ReaderScreen(
                 onDismissSkipped = onDismissSkipped,
             )
 
-            ReaderFooter(state = state, onPrev = onPrev, onNext = onNext)
+            ReaderFooter(
+                state = state,
+                onPrev = onPrev,
+                onNext = onNext,
+                onFinishReading = onFinishReading,
+            )
         }
 
         // 加载指示器盖在**整屏**之上并居中，与顶栏、底栏的高度无关。
@@ -377,12 +384,20 @@ private fun PageContent(
 }
 
 @Composable
-private fun ReaderFooter(state: ReaderUiState, onPrev: () -> Unit, onNext: () -> Unit) {
+private fun ReaderFooter(
+    state: ReaderUiState,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onFinishReading: () -> Unit,
+) {
     val tokens = LocalThemeTokens.current
-    // 注意用 hasNextPage / hasPrevPage 而不是页号比较：本章最后一页之后还有下一章，
-    // 「下一页」在那时仍然可用（它会滚进下一章）。
-    val isFirst = !state.hasPrevPage
-    val isLast = !state.hasNextPage
+
+    // **底栏平时只有页码** —— 章内翻页全靠滑动（翻页器就铺在整屏上），一颗按钮都不留。
+    // 按钮只在**章节边界**出现，而那是滑动到不了的唯一一处；判定连同它的理由都在
+    // ReaderUiState 上（那里能单测，六个边界组合少一个读者就走进死路）。
+    val showPrevChapter = state.showPrevChapterButton
+    val showNextChapter = state.showNextChapterButton
+    val showFinish = state.showFinishButton
 
     // 底栏做成一张浮起来的卡片：留出左右外边距，它就不必跟着屏幕边缘切成直角。
     Row(
@@ -392,16 +407,8 @@ private fun ReaderFooter(state: ReaderUiState, onPrev: () -> Unit, onNext: () ->
             .cardSurface()
             .padding(horizontal = Space.md, vertical = Space.md),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.Center,
     ) {
-        PanelButton(
-            label = "上一页",
-            onClick = onPrev,
-            icon = InputaIcons.ChevronLeft,
-            size = ButtonSize.Lg,
-            enabled = !isFirst,
-        )
-
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${state.pageIndex + 1} / ${state.pageCount} 页",
@@ -418,17 +425,46 @@ private fun ReaderFooter(state: ReaderUiState, onPrev: () -> Unit, onNext: () ->
                     textAlign = TextAlign.Center,
                 )
             }
-        }
 
-        // 「下一页」用实心：它是读者绝大多数时候要按的那一个。
-        PanelButton(
-            label = "下一页",
-            onClick = onNext,
-            trailingIcon = InputaIcons.ChevronRight,
-            tone = Tone.Invert,
-            size = ButtonSize.Lg,
-            enabled = !isLast,
-        )
+            // 「完成阅读」与「下一章」天然互斥（全书末页没有下一章），但两者都可能与
+            // 「上一章」同时出现，所以这里是三个独立的条件而不是 if/else 链。
+            if (showPrevChapter || showNextChapter || showFinish) {
+                Spacer(Modifier.height(Space.sm))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                    if (showPrevChapter) {
+                        PanelButton(
+                            label = "上一章",
+                            onClick = onPrev,
+                            icon = InputaIcons.ChevronLeft,
+                            size = ButtonSize.Lg,
+                        )
+                    }
+                    if (showNextChapter) {
+                        // 实心：章末时它是唯一的下一步。
+                        PanelButton(
+                            label = "下一章",
+                            onClick = onNext,
+                            trailingIcon = InputaIcons.ChevronRight,
+                            tone = Tone.Invert,
+                            size = ButtonSize.Lg,
+                        )
+                    }
+                    if (showFinish) {
+                        // 全书最后一页没有下一页，所以这颗按钮做的是同一件事（把本页未
+                        // 点击的词记为已掌握），只是后面没有页面要滚过去。没有它，最后一页
+                        // 的词永远不会被收录，读者读完全书却还留着一页未处理。
+                        PanelButton(
+                            label = if (state.isBookFinished) "已读完" else "完成阅读",
+                            onClick = onFinishReading,
+                            icon = InputaIcons.Check,
+                            tone = Tone.Invert,
+                            size = ButtonSize.Lg,
+                            enabled = !state.isBookFinished,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
