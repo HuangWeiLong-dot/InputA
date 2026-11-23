@@ -1,27 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 打开的书。自适应图标 108x108，安全区是中间 72x72，所以内容留在 28..80 之间。 -->
+<!-- 首字母 A：Inter ExtraBold 字形轮廓，帽高 50dp，居中于 108dp 画布。
+     内容收在中间 72dp 可视区内，圆形遮罩下也不会被裁切。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 左页 -->
     <path
-        android:fillColor="#FFF8EED9"
-        android:pathData="M29,36 L52,36 L52,74 L29,74 Z" />
-    <!-- 右页 -->
-    <path
-        android:fillColor="#FFEAD9B4"
-        android:pathData="M56,36 L79,36 L79,74 L56,74 Z" />
-
-    <!-- 左页文字行 -->
-    <path android:fillColor="#FF8F7500" android:pathData="M34,44 L47,44 L47,46.5 L34,46.5 Z" />
-    <path android:fillColor="#FF8F7500" android:pathData="M34,51 L47,51 L47,53.5 L34,53.5 Z" />
-    <path android:fillColor="#FF8F7500" android:pathData="M34,58 L43,58 L43,60.5 L34,60.5 Z" />
-
-    <!-- 右页文字行 -->
-    <path android:fillColor="#FF8F7500" android:pathData="M61,44 L74,44 L74,46.5 L61,46.5 Z" />
-    <path android:fillColor="#FF8F7500" android:pathData="M61,51 L74,51 L74,53.5 L61,53.5 Z" />
-    <path android:fillColor="#FF8F7500" android:pathData="M61,58 L70,58 L70,60.5 L61,60.5 Z" />
+        android:fillColor="#FF000000"
+        android:pathData="M28.82,79 L46,29 H61.9 L79.18,79 H65.69 L58.92,57.02 Q57.27,51.52 55.66,45.91 Q54.05,40.31 52.37,33.77 H55.63 Q53.88,40.31 52.26,45.91 Q50.63,51.52 48.92,57.02 L41.94,79 Z M40.59,69.37 V59.94 H67.41 V69.37 Z" />
 </vector>
