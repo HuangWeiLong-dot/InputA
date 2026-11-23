@@ -1,3 +1,5 @@
+<div align="center">
+
 # InputA
 
 [English](README.md) | [简体中文](README.zh-CN.md)
@@ -21,6 +23,8 @@
 ![UI](https://img.shields.io/badge/UI-English%20%7C%20%E4%B8%AD%E6%96%87-blue)
 
 一个非官方、本地优先的 Android 版 [LingQ](https://www.lingq.com/) 阅读器。阅读课程、点词查义、把生词记录留在本机，并播放课程音频；界面为纯深色自定义 Compose 风格。
+
+</div>
 
 > 这是一个直连 LingQ 内部接口的个人自用客户端，与 LingQ 官方无关，接口随时可能变化。使用前需要你自己的 LingQ 账号。
 

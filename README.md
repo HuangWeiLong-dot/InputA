@@ -1,3 +1,5 @@
+<div align="center">
+
 # InputA
 
 [English](README.md) | [简体中文](README.zh-CN.md)
@@ -21,6 +23,8 @@
 ![UI](https://img.shields.io/badge/UI-English%20%7C%20%E4%B8%AD%E6%96%87-blue)
 
 An unofficial, local-first Android reader for [LingQ](https://www.lingq.com/). Read lessons, tap unknown words, keep your vocabulary on your device, and listen to lesson audio — wrapped in a dark, custom Compose UI.
+
+</div>
 
 > This is a personal-use client that talks directly to LingQ's internal API. It is not affiliated with LingQ, and the API may change without notice. You need your own LingQ account.
 
