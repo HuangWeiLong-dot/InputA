@@ -15,7 +15,7 @@
 ![JDK](https://img.shields.io/badge/JDK-17-007396?logo=openjdk&logoColor=white)
 ![SDK](https://img.shields.io/badge/compile%2Ftarget%20SDK-37-3DDC84)
 ![minSdk](https://img.shields.io/badge/minSdk-26-3DDC84)
-![version](https://img.shields.io/badge/version-0.4.1-blue)
+![version](https://img.shields.io/badge/version-0.5.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
 ![Storage](https://img.shields.io/badge/storage-SharedPreferences-15803D)
 ![AI](https://img.shields.io/badge/AI-OpenAI%20compatible-412991)
