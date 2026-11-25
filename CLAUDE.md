@@ -23,6 +23,20 @@ cd android
 
 `keystore.properties` is gitignored and expects `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. Never commit it, the keystore, or real LingQ credentials.
 
+## Commit and PR conventions
+
+History follows Conventional Commits. Nothing enforces this automatically — there is no commit hook or CI check — so it relies on review.
+
+- Format: `<type>(<scope>): <summary>`, for example `feat(reader): translate long-pressed sentences`.
+- Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
+- Scope is a code area, not a version: `android`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`. Omit it for repo-wide changes. Never write `feat(0.4.1): …`; release bumps are `chore(release): bump to 0.4.1 (versionCode 5)`, and the version belongs in the body or the tag.
+- Summary: lowercase, imperative, no trailing period, roughly 72 characters or less. Describe one user-visible change, not a list of unrelated items.
+- One logical change per commit. Keep features, fixes, docs and build-environment tweaks separate; a `gradle.properties` workaround for Chinese paths gets its own commit instead of shipping with a feature.
+- Body: one blank line after the summary, explain why (not just what), wrap near 72 columns; bullet lists are fine.
+- Breaking changes: `feat(api)!: …` plus a `BREAKING CHANGE:` footer.
+- PR titles use the same format. The repository allows squash merges, so the PR title (or the single commit headline) becomes the headline on `main`; treat it as the final commit message.
+- Reference issues in the footer (`Refs #12`), not in the summary.
+
 ## Architecture
 
 **Single Activity, manual navigation.** `MainActivity` owns a `Screen` sealed interface plus `NextTab` selection; there is no Navigation-Compose. `CurrentLesson` and `CurrentCourse` are singleton `StateFlow` holders that carry the user's selection into `LessonViewModel`/`ReaderViewModel`. `Shell` records page content into a `GraphicsLayer` so the frosted bottom bar can blur the live content (real `BlurEffect` only on API 31+).
