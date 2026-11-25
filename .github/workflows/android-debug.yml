@@ -37,7 +37,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: "platforms;android-37"
+          packages: "platforms;android-37.0"
           accept-android-sdk-licenses: true
 
       - name: Build debug APK
