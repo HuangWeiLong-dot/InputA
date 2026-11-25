@@ -177,7 +177,9 @@ fun ExploreScreen(
 
         Box(modifier = Modifier.weight(1f)) {
             when {
-                state.loading && !state.hasLoaded -> LqLoading(
+                // 加载中（含切语言后的重新加载）一律显示 loading，
+                // 否则 hasLoaded 已经是 true 时，空列表会被当成"没找到课程"闪几秒。
+                state.loading && state.showingShelves && state.shelves.isEmpty() -> LqLoading(
                     modifier = Modifier.align(Alignment.TopCenter),
                     label = "Loading library…",
                 )
