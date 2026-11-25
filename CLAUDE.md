@@ -29,6 +29,7 @@ History follows Conventional Commits. Nothing enforces this automatically — th
 
 - Format: `<type>(<scope>): <summary>`, for example `feat(reader): translate long-pressed sentences`.
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
+- Branch names use `<type>/<short-kebab-summary>` with the same types and a lowercase ASCII kebab-case summary, for example `feat/sentence-translation`, `fix/explore-level-filter`, or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from current `main`, keep branches short-lived, and delete them after merge; release versions belong in release commits, tags, and milestones, not feature branch names.
 - Scope is a code area, not a version: `android`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`. Omit it for repo-wide changes. Never write `feat(0.4.1): …`; release bumps are `chore(release): bump to 0.4.1 (versionCode 5)`, and the version belongs in the body or the tag.
 - Summary: lowercase, imperative, no trailing period, roughly 72 characters or less. Describe one user-visible change, not a list of unrelated items.
 - One logical change per commit. Keep features, fixes, docs and build-environment tweaks separate; a `gradle.properties` workaround for Chinese paths gets its own commit instead of shipping with a feature.

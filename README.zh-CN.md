@@ -123,6 +123,7 @@ android/
 
 - 提交信息与 PR 标题遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：`type(scope): 摘要`，摘要使用小写祈使句，不加句号。
 - 常用 type：`feat`、`fix`、`refactor`、`docs`、`test`、`perf`、`build`、`ci`、`chore`。
+- 分支名使用 `type/短横线摘要`，例如 `feat/sentence-translation`、`ci/android-debug-build`；不要放版本号、用户名或 issue 编号。从当前 `main` 创建分支，合并后删除。
 - scope 写代码区段（`android`、`data`、`reader`、`explore`、`review`、`vocabulary`、`settings`、`design`），不要写版本号；发版用 `chore(release): bump to X.Y.Z (versionCode N)`。
 - 一个提交只做一件事，不要把功能、修复、文档和构建环境调整混在一起。
 - 仓库使用 squash 合并，PR 标题会成为 `main` 上的提交标题，因此必须符合同样的格式。

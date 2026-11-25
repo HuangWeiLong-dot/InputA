@@ -123,6 +123,7 @@ Commit and release rules are enforced by review only; the full version lives in 
 
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, with a lowercase imperative summary and no trailing period.
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
+- Branch names use `type/short-kebab-summary`, for example `feat/sentence-translation` or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from current `main` and delete the branch after merge.
 - Scopes are code areas (`android`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`), never versions. Releases use `chore(release): bump to X.Y.Z (versionCode N)`.
 - Keep one logical change per commit; do not mix features, fixes, docs, and build-environment tweaks.
 - The repository allows squash merges, so the PR title becomes the headline on `main` and must follow the same format.
