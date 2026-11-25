@@ -117,6 +117,18 @@ android/
 - 界面只提供深色主题。
 - AI 功能需要自行填写 OpenAI 兼容的 Base URL、API Key 和模型名。
 
+## 贡献
+
+提交与发布规范由 review 把关，完整规则见 [CLAUDE.md](CLAUDE.md)。
+
+- 提交信息与 PR 标题遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：`type(scope): 摘要`，摘要使用小写祈使句，不加句号。
+- 常用 type：`feat`、`fix`、`refactor`、`docs`、`test`、`perf`、`build`、`ci`、`chore`。
+- scope 写代码区段（`android`、`data`、`reader`、`explore`、`review`、`vocabulary`、`settings`、`design`），不要写版本号；发版用 `chore(release): bump to X.Y.Z (versionCode N)`。
+- 一个提交只做一件事，不要把功能、修复、文档和构建环境调整混在一起。
+- 仓库使用 squash 合并，PR 标题会成为 `main` 上的提交标题，因此必须符合同样的格式。
+- `0.x` 阶段遵循 SemVer：新增功能或行为变更走 minor，只有纯修复才走 patch；`versionName` 与 `versionCode` 一起递增，并同步更新 README 里的版本徽章。
+- Tag / Release 使用 `vX.Y.Z`（Release 标题为 `InputA X.Y.Z`）；milestone 使用同样的 `vX.Y.Z`，发版后关闭。
+
 ## 许可证
 
 MIT，详见 [LICENSE](LICENSE)。

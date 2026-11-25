@@ -117,6 +117,18 @@ android/
 - The UI is dark-theme only.
 - AI features require your own OpenAI-compatible base URL, API key, and model.
 
+## Contributing
+
+Commit and release rules are enforced by review only; the full version lives in [CLAUDE.md](CLAUDE.md).
+
+- Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, with a lowercase imperative summary and no trailing period.
+- Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
+- Scopes are code areas (`android`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`), never versions. Releases use `chore(release): bump to X.Y.Z (versionCode N)`.
+- Keep one logical change per commit; do not mix features, fixes, docs, and build-environment tweaks.
+- The repository allows squash merges, so the PR title becomes the headline on `main` and must follow the same format.
+- Versions are SemVer while the app is `0.x`: minor bumps for features or behavior changes, patch bumps only for fixes. Bump `versionName` and `versionCode` together and update the README badges in the same commit.
+- Tags and releases use `vX.Y.Z` (release title `InputA X.Y.Z`); milestones use the same `vX.Y.Z` title and are closed after tagging.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

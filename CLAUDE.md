@@ -37,6 +37,16 @@ History follows Conventional Commits. Nothing enforces this automatically — th
 - PR titles use the same format. The repository allows squash merges, so the PR title (or the single commit headline) becomes the headline on `main`; treat it as the final commit message.
 - Reference issues in the footer (`Refs #12`), not in the summary.
 
+## Versioning, milestones and releases
+
+The shipped version is `versionName` + `versionCode` in `android/app/build.gradle.kts`; bump both in the same commit and update the version badges in both READMEs.
+
+- Treat the project as SemVer `0.x`: new features or user-visible behavior changes take a minor bump (`0.4.0` → `0.5.0`), and a patch bump (`0.4.0` → `0.4.1`) is only for backwards-compatible fixes. Do not use a patch release to ship features.
+- `versionCode` increases by one on every release and is never reused.
+- Release commits are `chore(release): bump to X.Y.Z (versionCode N)`; never put a version in a `feat(...)` or `fix(...)` scope.
+- Tags and releases use `vX.Y.Z` (`v0.4.0`, release title `InputA 0.4.0`). Milestones use the same `vX.Y.Z` title so `milestone:v0.5.0` matches the tag.
+- Create a milestone when the release scope is planned, assign every PR and issue in that release, and close it after tagging; move unfinished items to the next milestone instead of leaving them behind.
+
 ## Architecture
 
 **Single Activity, manual navigation.** `MainActivity` owns a `Screen` sealed interface plus `NextTab` selection; there is no Navigation-Compose. `CurrentLesson` and `CurrentCourse` are singleton `StateFlow` holders that carry the user's selection into `LessonViewModel`/`ReaderViewModel`. `Shell` records page content into a `GraphicsLayer` so the frosted bottom bar can blur the live content (real `BlurEffect` only on API 31+).
