@@ -195,6 +195,7 @@ fun VocabularyScreen(
                 card = card,
                 meanings = state.meanings,
                 meaningsLoading = state.meaningsLoading,
+                translation = state.translation,
                 onDismiss = viewModel::dismissSelection,
                 onSpeak = { speaker.speak(card.term) },
                 onStatus = viewModel::updateStatus,
@@ -290,6 +291,7 @@ private fun VocabDetailSheet(
     card: VocabCard,
     meanings: List<Meaning>,
     meaningsLoading: Boolean,
+    translation: String?,
     onDismiss: () -> Unit,
     onSpeak: () -> Unit,
     onStatus: (Int) -> Unit,
@@ -353,14 +355,11 @@ private fun VocabDetailSheet(
                 }
             }
             Spacer(Modifier.height(LqSpace.md))
-            val entries = buildList {
-                addAll(meanings)
-                val inline = card.translation?.takeIf { it.isNotBlank() }
-                if (inline != null && none { it.text == inline }) add(Meaning(inline, null))
-            }.take(4)
+            val entries = meanings.take(4)
+            val machine = translation?.takeIf { it.isNotBlank() }
             when {
                 meaningsLoading && entries.isEmpty() -> SheetText("Looking up…")
-                entries.isEmpty() -> SheetText("No translation available")
+                entries.isEmpty() && machine == null -> SheetText("No translation available")
                 else -> Column(verticalArrangement = Arrangement.spacedBy(LqSpace.sm)) {
                     entries.forEach { meaning ->
                         Row(
@@ -381,6 +380,19 @@ private fun VocabDetailSheet(
                                 Spacer(Modifier.width(LqSpace.sm))
                             }
                             RawText(meaning.text, color = LqColors.text, fontSize = 14.sp)
+                        }
+                    }
+                    // 译文单独一行，不会被 meanings 的 take(4) 截掉。
+                    if (machine != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(LqRadius.control))
+                                .background(LqColors.bgSoft)
+                                .padding(horizontal = LqSpace.md, vertical = LqSpace.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RawText(machine, color = LqColors.text, fontSize = 14.sp)
                         }
                     }
                 }
