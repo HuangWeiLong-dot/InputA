@@ -15,7 +15,7 @@
 ![JDK](https://img.shields.io/badge/JDK-17-007396?logo=openjdk&logoColor=white)
 ![SDK](https://img.shields.io/badge/compile%2Ftarget%20SDK-37-3DDC84)
 ![minSdk](https://img.shields.io/badge/minSdk-26-3DDC84)
-![version](https://img.shields.io/badge/version-0.4.0-blue)
+![version](https://img.shields.io/badge/version-0.4.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
 ![Storage](https://img.shields.io/badge/storage-SharedPreferences-15803D)
 ![AI](https://img.shields.io/badge/AI-OpenAI%20compatible-412991)
@@ -66,6 +66,7 @@ There is intentionally no Room, Navigation-Compose, or Coil dependency; the app 
 - Vocabulary status, bookmarks, playlist, last lesson, reading settings, and the AI explanation cache stay on the device.
 - Passwords are only used to request a token and are not persisted.
 - AI requests go to the OpenAI-compatible endpoint **you** configure.
+- Translation sends the tapped word or long-pressed sentence to Youdao (`dict.youdao.com`) or Bing (`cn.bing.com`). It is on by default and can be turned off in Settings → Word Popup; after that, text stays on the device.
 
 Word statuses are local-first on purpose: the app does not write them back to LingQ, so the vocabulary and counts shown here can differ from your LingQ account stats.
 

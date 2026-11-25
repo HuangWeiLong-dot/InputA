@@ -15,7 +15,7 @@
 ![JDK](https://img.shields.io/badge/JDK-17-007396?logo=openjdk&logoColor=white)
 ![SDK](https://img.shields.io/badge/compile%2Ftarget%20SDK-37-3DDC84)
 ![minSdk](https://img.shields.io/badge/minSdk-26-3DDC84)
-![version](https://img.shields.io/badge/version-0.4.0-blue)
+![version](https://img.shields.io/badge/version-0.4.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
 ![Storage](https://img.shields.io/badge/storage-SharedPreferences-15803D)
 ![AI](https://img.shields.io/badge/AI-OpenAI%20compatible-412991)
@@ -66,6 +66,7 @@
 - 词状态、收藏、播放列表、上次阅读、阅读设置和 AI 讲解缓存都只存在本机。
 - 密码仅用于换取 Token，不会被保存。
 - AI 请求只会发往**你自己**配置的 OpenAI 兼容接口。
+- 翻译会把点选的单词或长按的句子发往有道词典（`dict.youdao.com`）或 Bing（`cn.bing.com`）。该功能默认开启，可在「设置 → 词弹窗」里关闭，关闭后文本只留在本机。
 
 词状态有意只保存在本地、不回写 LingQ，因此这里显示的词库和统计可能与你 LingQ 账号里的数据不同。
 
