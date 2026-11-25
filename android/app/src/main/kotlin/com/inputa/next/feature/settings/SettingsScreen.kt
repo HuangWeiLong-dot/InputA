@@ -90,6 +90,8 @@ fun SettingsScreen(
     val reviewRandom by viewModel.reviewRandom.collectAsStateWithLifecycle()
     val pronounceOnTap by viewModel.pronounceOnTap.collectAsStateWithLifecycle()
     val autoCreateLingq by viewModel.autoCreateLingq.collectAsStateWithLifecycle()
+    val autoTranslate by viewModel.autoTranslate.collectAsStateWithLifecycle()
+    val translationLanguage by viewModel.translationLanguage.collectAsStateWithLifecycle()
     val readerMode by viewModel.readerMode.collectAsStateWithLifecycle()
     val reminderEnabled by viewModel.reminderEnabled.collectAsStateWithLifecycle()
     val reminderHour by viewModel.reminderHour.collectAsStateWithLifecycle()
@@ -174,7 +176,7 @@ fun SettingsScreen(
             )
             SettingRow(
                 label = "Word Popup",
-                value = null,
+                value = translationLanguageLabel(translationLanguage),
                 icon = LqIcons.Layers,
                 onClick = { sheet = SettingsSheet.WordPopup },
             )
@@ -313,8 +315,12 @@ fun SettingsScreen(
         SettingsSheet.WordPopup -> WordPopupSheet(
             pronounceOnTap = pronounceOnTap,
             autoCreateLingq = autoCreateLingq,
+            autoTranslate = autoTranslate,
+            translationLanguage = translationLanguage,
             onPronounceOnTap = viewModel::setPronounceOnTap,
             onAutoCreateLingq = viewModel::setAutoCreateLingq,
+            onAutoTranslate = viewModel::setAutoTranslate,
+            onTranslationLanguage = viewModel::setTranslationLanguage,
             onDismiss = { sheet = null },
         )
 

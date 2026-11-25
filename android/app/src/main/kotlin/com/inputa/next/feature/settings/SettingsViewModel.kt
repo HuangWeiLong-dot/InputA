@@ -46,6 +46,8 @@ class SettingsViewModel @Inject constructor(
     val reviewRandom = settings.reviewRandom
     val pronounceOnTap = settings.pronounceOnTap
     val autoCreateLingq = settings.autoCreateLingq
+    val autoTranslate = settings.autoTranslate
+    val translationLanguage = settings.translationLanguage
     val readerMode = settings.readerMode
     val reminderEnabled = settings.reminderEnabled
     val reminderHour = settings.reminderHour
@@ -65,6 +67,8 @@ class SettingsViewModel @Inject constructor(
     fun setReviewRandom(enabled: Boolean) = settings.setReviewRandom(enabled)
     fun setPronounceOnTap(enabled: Boolean) = settings.setPronounceOnTap(enabled)
     fun setAutoCreateLingq(enabled: Boolean) = settings.setAutoCreateLingq(enabled)
+    fun setAutoTranslate(enabled: Boolean) = settings.setAutoTranslate(enabled)
+    fun setTranslationLanguage(code: String) = settings.setTranslationLanguage(code)
     fun setReaderMode(mode: String) = settings.setReaderMode(mode)
 
     fun setReminderEnabled(enabled: Boolean) {

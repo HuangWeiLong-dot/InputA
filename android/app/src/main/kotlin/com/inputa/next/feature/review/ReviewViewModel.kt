@@ -2,10 +2,10 @@ package com.inputa.next.feature.review
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.inputa.next.core.data.LingqApi
 import com.inputa.next.core.data.Meaning
 import com.inputa.next.core.data.SessionStore
 import com.inputa.next.core.data.VocabCard
+import com.inputa.next.core.data.WordMeanings
 import com.inputa.next.core.data.local.LocalWordStore
 import com.inputa.next.core.data.local.SettingsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +19,7 @@ import javax.inject.Inject
 /** 复习池完全来自本机词库；LingQ 只用于查释义。 */
 @HiltViewModel
 class ReviewViewModel @Inject constructor(
-    private val api: LingqApi,
+    private val wordMeanings: WordMeanings,
     private val session: SessionStore,
     private val localWords: LocalWordStore,
     private val settings: SettingsStore,
@@ -33,6 +33,8 @@ class ReviewViewModel @Inject constructor(
         val revealed: Boolean = false,
         val meanings: List<Meaning> = emptyList(),
         val meaningsLoading: Boolean = false,
+        /** 词卡最后一行的机器译文，单独渲染，不受 meanings 的条数上限影响。 */
+        val translation: String? = null,
         val done: Boolean = false,
         val notice: String? = null,
     ) {
@@ -74,15 +76,18 @@ class ReviewViewModel @Inject constructor(
 
     fun reveal() {
         val card = _state.value.current ?: return
-        _state.update { it.copy(revealed = true, meanings = emptyList(), meaningsLoading = true) }
+        _state.update {
+            it.copy(revealed = true, meanings = emptyList(), meaningsLoading = true, translation = null)
+        }
         viewModelScope.launch {
-            val meanings = runCatching { api.meanings(language, card.term) }.getOrDefault(emptyList())
+            // 先出词典，再补译文：卡片不会因为等翻译而整体晚一个请求。
+            val entries = wordMeanings.dictionary(language, card.term)
             _state.update {
-                if (it.current?.id == card.id) {
-                    it.copy(meanings = meanings, meaningsLoading = false)
-                } else {
-                    it
-                }
+                if (it.current?.id == card.id) it.copy(meanings = entries, meaningsLoading = false) else it
+            }
+            val translation = wordMeanings.translation(language, card.term)
+            _state.update {
+                if (it.current?.id == card.id) it.copy(translation = translation) else it
             }
         }
     }

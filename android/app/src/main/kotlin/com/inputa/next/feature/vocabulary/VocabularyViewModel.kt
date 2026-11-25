@@ -2,10 +2,10 @@ package com.inputa.next.feature.vocabulary
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.inputa.next.core.data.LingqApi
 import com.inputa.next.core.data.Meaning
 import com.inputa.next.core.data.SessionStore
 import com.inputa.next.core.data.VocabCard
+import com.inputa.next.core.data.WordMeanings
 import com.inputa.next.core.data.local.LocalWordStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +29,7 @@ enum class VocabFilter(val label: String) {
  */
 @HiltViewModel
 class VocabularyViewModel @Inject constructor(
-    private val api: LingqApi,
+    private val wordMeanings: WordMeanings,
     private val session: SessionStore,
     private val localWords: LocalWordStore,
 ) : ViewModel() {
@@ -44,6 +44,8 @@ class VocabularyViewModel @Inject constructor(
         val selected: VocabCard? = null,
         val meanings: List<Meaning> = emptyList(),
         val meaningsLoading: Boolean = false,
+        /** 词卡最后一行的机器译文，单独渲染，不受 meanings 条数上限影响。 */
+        val translation: String? = null,
         val notice: String? = null,
     )
 
@@ -80,16 +82,17 @@ class VocabularyViewModel @Inject constructor(
 
     fun select(card: VocabCard) {
         _state.update {
-            it.copy(selected = card, meanings = emptyList(), meaningsLoading = true)
+            it.copy(selected = card, meanings = emptyList(), meaningsLoading = true, translation = null)
         }
         viewModelScope.launch {
-            val meanings = runCatching { api.meanings(language, card.term) }.getOrDefault(emptyList())
+            // 先出词典，再补译文：弹窗不会因为等翻译而整体晚一个请求。
+            val entries = wordMeanings.dictionary(language, card.term)
             _state.update {
-                if (it.selected?.id == card.id) {
-                    it.copy(meanings = meanings, meaningsLoading = false)
-                } else {
-                    it
-                }
+                if (it.selected?.id == card.id) it.copy(meanings = entries, meaningsLoading = false) else it
+            }
+            val translation = wordMeanings.translation(language, card.term)
+            _state.update {
+                if (it.selected?.id == card.id) it.copy(translation = translation) else it
             }
         }
     }

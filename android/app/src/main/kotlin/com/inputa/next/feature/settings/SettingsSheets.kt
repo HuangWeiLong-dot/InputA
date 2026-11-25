@@ -3,6 +3,7 @@ package com.inputa.next.feature.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,18 @@ internal fun formatGoal(value: Int): String = String.format("%,d", value)
 
 internal fun reminderTimeLabel(hour: Int, minute: Int): String =
     String.format("%02d:%02d", hour, minute)
+
+/** 释义语言选项：空串跟随界面语言。 */
+internal val translationLanguageOptions: List<Pair<String, String>> = listOf(
+    "" to "Auto",
+    "zh" to "Chinese",
+    "en" to "English",
+    "ja" to "Japanese",
+    "ko" to "Korean",
+)
+
+internal fun translationLanguageLabel(code: String): String =
+    translationLanguageOptions.firstOrNull { it.first == code }?.second ?: "Auto"
 
 /** 设置页所有底部面板共用的外壳：遮罩 + 圆角面板 + 标题 + 关闭。 */
 @Composable
@@ -215,8 +228,12 @@ fun ReviewSettingsSheet(
 fun WordPopupSheet(
     pronounceOnTap: Boolean,
     autoCreateLingq: Boolean,
+    autoTranslate: Boolean,
+    translationLanguage: String,
     onPronounceOnTap: (Boolean) -> Unit,
     onAutoCreateLingq: (Boolean) -> Unit,
+    onAutoTranslate: (Boolean) -> Unit,
+    onTranslationLanguage: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     SettingsSheetScaffold(
@@ -224,6 +241,40 @@ fun WordPopupSheet(
         subtitle = "What happens when you tap a word",
         onDismiss = onDismiss,
     ) {
+        Text("Translation language", color = LqColors.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(LqSpace.sm))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(LqSpace.sm),
+        ) {
+            translationLanguageOptions.forEach { (code, label) ->
+                LqChip(
+                    label = label,
+                    selected = translationLanguage == code,
+                    onClick = { onTranslationLanguage(code) },
+                )
+            }
+        }
+        Spacer(Modifier.height(LqSpace.md))
+        Text(
+            text = "LingQ dictionary entries stay as they are; the last line of the popup is translated into this language.",
+            color = LqColors.muted,
+            fontSize = 11.sp,
+        )
+        Spacer(Modifier.height(LqSpace.lg))
+        SheetToggle(
+            label = "Translation",
+            description = "Translate tapped words and long-pressed sentences into the language above.",
+            checked = autoTranslate,
+            onToggle = { onAutoTranslate(!autoTranslate) },
+        )
+        Spacer(Modifier.height(LqSpace.sm))
+        Text(
+            text = "Translation sends the selected word or sentence to Youdao (dict.youdao.com) or Bing (cn.bing.com). Turn it off to keep text on the device.",
+            color = LqColors.muted,
+            fontSize = 11.sp,
+        )
+        Spacer(Modifier.height(LqSpace.lg))
         SheetToggle(
             label = "Pronounce on tap",
             description = "Play the word audio as soon as the popup opens.",
