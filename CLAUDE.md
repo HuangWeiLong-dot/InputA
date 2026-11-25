@@ -88,5 +88,5 @@ Release planning also lives in the account-level `Languages Learning` project on
 - Code comments and `PLAN.md` are written in Chinese; user-visible strings are English keys translated by the dictionary. Add a translation entry whenever you add UI text, otherwise Chinese mode shows the English key.
 - Coroutines: `runCatching` swallows `CancellationException`. Rethrow cancellation (see `ExploreViewModel.fetch`) and guard stale writes with `collectLatest` or generation counters; otherwise an old request can overwrite newer state.
 - Keep the status encoding consistent: local storage uses `0` for known, while the vocabulary UI uses `5` for known and maps it back (`VocabularyViewModel.updateStatus`).
-- No unit/instrumentation tests or CI exist. Verify changes with `./gradlew :app:compileDebugKotlin` or `:app:assembleDebug`; the current build emits only Kotlin annotation-target warnings.
+- No unit/instrumentation tests exist. CI builds the debug APK for pull requests and pushes to `main`; verify local changes with `./gradlew :app:compileDebugKotlin` or `:app:assembleDebug`; the current build emits only Kotlin annotation-target warnings.
 - Do not introduce a self-hosted backend, a configurable LingQ origin, or plaintext credential storage. Login supports both username/password and a pasted LingQ token; the token stays encrypted and is never logged.
