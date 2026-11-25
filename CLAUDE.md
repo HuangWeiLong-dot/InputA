@@ -37,6 +37,14 @@ History follows Conventional Commits. Nothing enforces this automatically — th
 - PR titles use the same format. The repository allows squash merges, so the PR title (or the single commit headline) becomes the headline on `main`; treat it as the final commit message.
 - Reference issues in the footer (`Refs #12`), not in the summary.
 
+## Review comment conventions
+
+Review bodies and PR comments use an English skeleton with Chinese explanations, so the structure scans the same way across reviews and can be referenced directly.
+
+- Section headings, checklist group labels, and lead-in labels are English: `Review verdict`, `Blocking issues`, `Medium priority`, `Low priority / cleanup`, `What works well`, `Pre-merge checklist`, group labels such as `Conventions and versioning`, and labels such as `Conclusion`, `Rationale`, `Changes needed`, and suggestion lead-ins.
+- Explanations, evidence, and inline review comments stay in Chinese; keep code, paths, and commit examples verbatim.
+- Put merge gates in a `Pre-merge checklist` task list and update it as findings are fixed instead of leaving a stale checklist.
+
 ## Versioning, milestones and releases
 
 The shipped version is `versionName` + `versionCode` in `android/app/build.gradle.kts`; bump both in the same commit and update the version badges in both READMEs.
@@ -46,6 +54,16 @@ The shipped version is `versionName` + `versionCode` in `android/app/build.gradl
 - Release commits are `chore(release): bump to X.Y.Z (versionCode N)`; never put a version in a `feat(...)` or `fix(...)` scope.
 - Tags and releases use `vX.Y.Z` (`v0.4.0`, release title `InputA 0.4.0`). Milestones use the same `vX.Y.Z` title so `milestone:v0.5.0` matches the tag.
 - Create a milestone when the release scope is planned, assign every PR and issue in that release, and close it after tagging; move unfinished items to the next milestone instead of leaving them behind.
+
+## GitHub Projects conventions
+
+Release planning also lives in the account-level `Languages Learning` project on GitHub. Milestones remain the release source of truth; project fields are for planning only.
+
+- **Priority** — `P0`: blocking (broken login, crash, blocked release, credential or data loss), handle immediately and keep it out of the backlog; `P1`: must ship in the current milestone, a workaround exists; `P2`: planned but deferrable to a later version.
+- **Size** — coarse effort: `XS` up to about 2 hours, `S` about half a day, `M` one to two days, `L` three to five days, and `XL` over a week, which should be split before starting.
+- **Estimate** — numeric hours in this project (`1` means one hour). Keep it roughly consistent with `Size` instead of mixing in story points.
+- **Iteration** — 14-day cycles starting on Sunday. Assign an item to the iteration it is planned for, and move unfinished work to the next iteration instead of leaving it in a past one. The schedule does not roll forward by itself; add an iteration when none is current, and keep completed iterations for history.
+- **Start date / Target date** — per-item planning dates; the target should fall inside the assigned iteration.
 
 ## Architecture
 
