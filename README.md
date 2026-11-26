@@ -5,24 +5,12 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 ![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-3DDC84?logo=android&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
-![Hilt](https://img.shields.io/badge/DI-Hilt-2C4F7C)
-![OkHttp](https://img.shields.io/badge/HTTP-OkHttp-3E4348)
-![kotlinx.serialization](https://img.shields.io/badge/JSON-kotlinx.serialization-7F52FF)
-![MVVM](https://img.shields.io/badge/architecture-MVVM-6E4AFF)
-![Gradle](https://img.shields.io/badge/Gradle-9.6-02303A?logo=gradle&logoColor=white)
-![JDK](https://img.shields.io/badge/JDK-17-007396?logo=openjdk&logoColor=white)
-![SDK](https://img.shields.io/badge/compile%2Ftarget%20SDK-37-3DDC84)
-![minSdk](https://img.shields.io/badge/minSdk-26-3DDC84)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![version](https://img.shields.io/badge/version-0.4.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
-![Storage](https://img.shields.io/badge/storage-SharedPreferences-15803D)
-![AI](https://img.shields.io/badge/AI-OpenAI%20compatible-412991)
-![Theme](https://img.shields.io/badge/theme-dark-111113)
-![UI](https://img.shields.io/badge/UI-English%20%7C%20%E4%B8%AD%E6%96%87-blue)
 
 An unofficial, local-first [LingQ](https://www.lingq.com/) reader. The Android app provides the full feature set; the React web app focuses on the core learning loop: login, home, explore, lesson/course previews, reading, local vocabulary, and flashcard review.
 
@@ -147,14 +135,18 @@ web/
 
 ## Contributing
 
-Commit, review, development, and release rules are enforced by review only; the full version lives in [CONTRIBUTING.md](CONTRIBUTING.md).
+Commit, review, development, and release rules are enforced by review only. See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor requirements and [AGENTS.md](AGENTS.md) for the canonical branch/worktree, PR follow-up, and architecture rules.
 
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, with a lowercase imperative summary and no trailing period.
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
-- Branch names use `type/short-kebab-summary`, for example `feat/sentence-translation` or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from current `main` and delete the branch after merge.
+- Branch names use `type/short-kebab-summary`, for example `feat/sentence-translation` or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from the latest `origin/main`, keep branches short-lived, and delete them after merge.
+- Every code or documentation change uses a matching branch-specific worktree named `<repository>-worktree-<type>-<short-kebab-summary>`. Develop and commit inside that worktree; reserve the main checkout for synchronization, integration review, and administrative work. See [Local development worktrees](AGENTS.md#local-development-worktrees).
 - Scopes are code areas (`android`, `web`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`), never versions. Releases use `chore(release): bump to X.Y.Z (versionCode N)`.
 - Keep one logical change per commit; do not mix features, fixes, docs, and build-environment tweaks.
+- Complete the required change lifecycle: synchronize, branch, create the worktree, verify, commit, push, open a PR, wait for CI, squash-merge, and clean up the merged worktree and branches. Never commit directly to `main`. See [Mandatory change workflow](AGENTS.md#mandatory-change-workflow).
 - The repository allows squash merges, so the PR title becomes the headline on `main` and must follow the same format.
+- After opening a PR, complete the English template and set semantic labels, the `vX.Y.Z` release milestone, and the `Languages Learning` project fields. Recheck this metadata after scope-changing pushes. See [PR follow-up checklist](AGENTS.md#pr-follow-up-checklist).
+- Parallel agents must use separate branches and worktrees with non-overlapping files; each agent verifies and records only their own results.
 - Versions are SemVer while the app is `0.x`: minor bumps for features or behavior changes, patch bumps only for fixes. Bump `versionName` and `versionCode` together and update the README badges in the same commit.
 - Tags and releases use `vX.Y.Z` (release title `InputA X.Y.Z`); milestones use the same `vX.Y.Z` title and are closed after tagging.
 
