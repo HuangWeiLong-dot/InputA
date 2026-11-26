@@ -1,0 +1,116 @@
+name: Bug report
+description: 报告 InputA 中可复现的缺陷或异常行为
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索现有 Issue，确认问题尚未被报告。
+
+        > 请勿附上 LingQ token、密码、真实账号凭据、AI API key、keystore.properties、keystore 或签名 APK/AAB。如果凭据已经泄露，请先停止使用并轮换，再联系维护者。
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: 填写设置中显示的版本号；如果界面未显示版本号，可留空。
+      placeholder: "0.4.0"
+    validations:
+      required: false
+  - type: input
+    id: android-version
+    attributes:
+      label: Android version / API level
+      description: 例如 Android 14 / API 34。
+      placeholder: "Android 14 / API 34"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      description: 填写设备或模拟器型号。
+      placeholder: "Google Pixel 8"
+    validations:
+      required: true
+  - type: dropdown
+    id: build-type
+    attributes:
+      label: Build type
+      description: Release 与 Debug 的应用 ID 和名称不同，请确认当前安装的是哪一种。
+      options:
+        - Release
+        - Debug
+    validations:
+      required: true
+  - type: dropdown
+    id: app-language
+    attributes:
+      label: App language
+      options:
+        - English
+        - 简体中文
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: 按顺序列出能够触发问题的最小操作步骤。
+      placeholder: |
+        1. 打开 InputA
+        2. 进入 ...
+        3. 点击 ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: 说明原本预期发生什么。
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: 说明实际发生了什么；如有崩溃、错误提示或状态异常，请具体描述。
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Always
+        - Often
+        - Sometimes
+        - Happened once
+    validations:
+      required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression information
+      description: 如果问题是在某个版本之后出现的，请填写最后正常的版本和首次异常的版本；不确定可留空。
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots, recordings, or logs
+      description: 提供截图、录屏或去除敏感信息后的日志；没有可留空。
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: 我已搜索现有 Issue，没有发现相同问题。
+          required: true
+        - label: 我已移除提交内容中的 token、密码、API key 和其他敏感信息。
+          required: true
