@@ -4,7 +4,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-3DDC84?logo=android&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![Hilt](https://img.shields.io/badge/DI-Hilt-2C4F7C)
@@ -22,7 +24,7 @@
 ![Theme](https://img.shields.io/badge/theme-dark-111113)
 ![UI](https://img.shields.io/badge/UI-English%20%7C%20%E4%B8%AD%E6%96%87-blue)
 
-一个非官方、本地优先的 Android 版 [LingQ](https://www.lingq.com/) 阅读器。阅读课程、点词查义、把生词记录留在本机，并播放课程音频；界面为纯深色自定义 Compose 风格。
+一个非官方、本地优先的 [LingQ](https://www.lingq.com/) 阅读器。Android 提供完整功能；React Web 首版聚焦核心学习闭环：登录、首页、发现、课程/合集预览、阅读、本地词库与闪卡复习。
 
 </div>
 
@@ -61,8 +63,8 @@
 
 ## 数据与隐私
 
-- **没有自建后端**，应用直接访问 `https://www.lingq.com/`。
-- LingQ Token 保存在 `EncryptedSharedPreferences` 中，不会写入日志。
+- **没有业务后端或数据库**。Android 直接访问 `https://www.lingq.com/`；由于 LingQ 未开放浏览器 CORS，Web 使用最小同源转发代理。
+- Android 的 LingQ Token 保存在 `EncryptedSharedPreferences`；Web 只在内存中保留 Token，刷新后需重新登录。两端都不会记录 Token。
 - 词状态、收藏、播放列表、上次阅读、阅读设置和 AI 讲解缓存都只存在本机。
 - 密码仅用于换取 Token，不会被保存。
 - AI 请求只会发往**你自己**配置的 OpenAI 兼容接口。
@@ -95,6 +97,27 @@ cd android
 ./gradlew :app:assembleRelease
 ```
 
+### Web
+
+需要 Node.js 24。完整的 Web 开发、部署与测试说明见 [web/README.md](web/README.md)。
+
+```bash
+cd web
+npm ci
+npm run dev
+```
+
+```bash
+cd web
+npm run typecheck
+npm run lint
+npm test
+npm run test:server
+npm run test:e2e
+npm run build
+npm start
+```
+
 ## 项目结构
 
 ```text
@@ -108,12 +131,17 @@ android/
     feature/               # auth、home、explore、lesson、course、reader、vocabulary、
                            # review、stats、playlist、saved、imports、chat、settings
   app/src/main/res/        # manifest、启动图标、主题
+web/
+  src/                     # React 功能、接口解析、领域逻辑与本地存储
+  server/                  # 白名单 LingQ 代理与 Node 静态服务
+  e2e/                     # Playwright 学习闭环测试
 ```
 
 ## 已知限制
 
 - LingQ 内部接口没有公开文档，字段和额度可能变化并导致功能失效。
-- 目前没有自动化测试；CI 会为 pull request 和推送至 `main` 的提交构建 debug APK。
+- Android 暂无自动化测试；CI 会为 pull request 和推送至 `main` 的提交构建 debug APK。Web 已在 CI 中运行解析/领域测试、代理白名单测试、浏览器测试与生产构建。
+- Web 首版不包含 AI、播放列表、导入、提醒、完整统计页以及 Android/Web 同步。
 - 界面只提供深色主题。
 - AI 功能需要自行填写 OpenAI 兼容的 Base URL、API Key 和模型名。
 
@@ -124,7 +152,7 @@ android/
 - 提交信息与 PR 标题遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：`type(scope): 摘要`，摘要使用小写祈使句，不加句号。
 - 常用 type：`feat`、`fix`、`refactor`、`docs`、`test`、`perf`、`build`、`ci`、`chore`。
 - 分支名使用 `type/短横线摘要`，例如 `feat/sentence-translation`、`ci/android-debug-build`；不要放版本号、用户名或 issue 编号。从当前 `main` 创建分支，合并后删除。
-- scope 写代码区段（`android`、`data`、`reader`、`explore`、`review`、`vocabulary`、`settings`、`design`），不要写版本号；发版用 `chore(release): bump to X.Y.Z (versionCode N)`。
+- scope 写代码区段（`android`、`web`、`data`、`reader`、`explore`、`review`、`vocabulary`、`settings`、`design`），不要写版本号；发版用 `chore(release): bump to X.Y.Z (versionCode N)`。
 - 一个提交只做一件事，不要把功能、修复、文档和构建环境调整混在一起。
 - 仓库使用 squash 合并，PR 标题会成为 `main` 上的提交标题，因此必须符合同样的格式。
 - `0.x` 阶段遵循 SemVer：新增功能或行为变更走 minor，只有纯修复才走 patch；`versionName` 与 `versionCode` 一起递增，并同步更新 README 里的版本徽章。

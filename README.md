@@ -4,7 +4,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-3DDC84?logo=android&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![Hilt](https://img.shields.io/badge/DI-Hilt-2C4F7C)
@@ -22,7 +24,7 @@
 ![Theme](https://img.shields.io/badge/theme-dark-111113)
 ![UI](https://img.shields.io/badge/UI-English%20%7C%20%E4%B8%AD%E6%96%87-blue)
 
-An unofficial, local-first Android reader for [LingQ](https://www.lingq.com/). Read lessons, tap unknown words, keep your vocabulary on your device, and listen to lesson audio — wrapped in a dark, custom Compose UI.
+An unofficial, local-first [LingQ](https://www.lingq.com/) reader. The Android app provides the full feature set; the React web app focuses on the core learning loop: login, home, explore, lesson/course previews, reading, local vocabulary, and flashcard review.
 
 </div>
 
@@ -61,8 +63,8 @@ There is intentionally no Room, Navigation-Compose, or Coil dependency; the app 
 
 ## Data and privacy
 
-- There is **no project-owned backend**. The app talks directly to `https://www.lingq.com/`.
-- Your LingQ token is stored in `EncryptedSharedPreferences` and is never logged.
+- There is **no business backend or database**. Android talks directly to `https://www.lingq.com/`; Web uses a minimal same-origin forwarding proxy because LingQ does not allow browser CORS access.
+- Android keeps the LingQ token in `EncryptedSharedPreferences`. Web keeps it only in memory and requires signing in again after a reload. Neither client logs it.
 - Vocabulary status, bookmarks, playlist, last lesson, reading settings, and the AI explanation cache stay on the device.
 - Passwords are only used to request a token and are not persisted.
 - AI requests go to the OpenAI-compatible endpoint **you** configure.
@@ -95,6 +97,27 @@ cd android
 ./gradlew :app:assembleRelease
 ```
 
+### Web
+
+Requires Node.js 24. Full Web setup, deployment, and test instructions are in [web/README.md](web/README.md).
+
+```bash
+cd web
+npm ci
+npm run dev
+```
+
+```bash
+cd web
+npm run typecheck
+npm run lint
+npm test
+npm run test:server
+npm run test:e2e
+npm run build
+npm start
+```
+
 ## Project layout
 
 ```text
@@ -108,12 +131,17 @@ android/
     feature/               # auth, home, explore, lesson, course, reader, vocabulary,
                            # review, stats, playlist, saved, imports, chat, settings
   app/src/main/res/        # manifest, launcher assets, theme
+web/
+  src/                     # React features, API parsers, domain and local storage
+  server/                  # allowlisted LingQ proxy and Node static server
+  e2e/                     # Playwright learning-loop tests
 ```
 
 ## Limitations
 
 - LingQ's internal API is undocumented; fields and quotas can change and break features.
-- There are no automated tests; CI builds the debug APK for pull requests and pushes to `main`.
+- Android has no automated tests; CI builds the debug APK for pull requests and pushes to `main`. Web has parser/domain tests, proxy allowlist tests, browser tests, and a production build in CI.
+- The Web first release excludes AI, playlists, imports, reminders, the full stats screen, and Android/Web synchronization.
 - The UI is dark-theme only.
 - AI features require your own OpenAI-compatible base URL, API key, and model.
 
@@ -124,7 +152,7 @@ Commit, review, development, and release rules are enforced by review only; the 
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, with a lowercase imperative summary and no trailing period.
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
 - Branch names use `type/short-kebab-summary`, for example `feat/sentence-translation` or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from current `main` and delete the branch after merge.
-- Scopes are code areas (`android`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`), never versions. Releases use `chore(release): bump to X.Y.Z (versionCode N)`.
+- Scopes are code areas (`android`, `web`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`), never versions. Releases use `chore(release): bump to X.Y.Z (versionCode N)`.
 - Keep one logical change per commit; do not mix features, fixes, docs, and build-environment tweaks.
 - The repository allows squash merges, so the PR title becomes the headline on `main` and must follow the same format.
 - Versions are SemVer while the app is `0.x`: minor bumps for features or behavior changes, patch bumps only for fixes. Bump `versionName` and `versionCode` together and update the README badges in the same commit.

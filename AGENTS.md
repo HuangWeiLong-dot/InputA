@@ -4,7 +4,7 @@ This file is the shared repository guide for human contributors and coding agent
 
 ## Repository status
 
-This is an Android-only repository. The previous web client and its Node backend were removed in the 0.4.0 commit; everything that ships lives under `android/`, which is an independent Gradle project.
+This repository contains an Android app under `android/` and a React web client under `web/`. The previous unrelated web client and its Node backend were removed in 0.4.0; the current `web/` app is the focused InputA learning client.
 
 `android/PLAN.md` is the original design brief, not documentation of the current code. It proposes a multi-module layout (`core/design`, `core/data`, `feature/*`) and Room/DataStore/Coil; the shipped app is a single `:app` module that uses SharedPreferences and a hand-written image loader. Trust the code and this file over PLAN.md.
 
@@ -23,6 +23,23 @@ cd android
 
 `keystore.properties` is gitignored and expects `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. Never commit it, the keystore, or real LingQ credentials.
 
+Run Web commands from `web/`. Requires Node.js 24 and npm.
+
+```bash
+cd web
+npm ci
+npm run dev
+npm run typecheck
+npm run lint
+npm test
+npm run test:server
+npm run test:e2e        # first run: npx playwright install chromium
+npm run build
+npm start               # serves web/dist and the proxy
+```
+
+Web Playwright uses Chromium by default. Set `PLAYWRIGHT_CHANNEL` to use a locally installed channel such as `msedge` or `chrome`.
+
 ## Commit and PR conventions
 
 History follows Conventional Commits. Nothing enforces this automatically — there is no commit hook or CI check — so it relies on review.
@@ -30,20 +47,130 @@ History follows Conventional Commits. Nothing enforces this automatically — th
 - Format: `<type>(<scope>): <summary>`, for example `feat(reader): translate long-pressed sentences`.
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
 - Branch names use `<type>/<short-kebab-summary>` with the same types and a lowercase ASCII kebab-case summary, for example `feat/sentence-translation`, `fix/explore-level-filter`, or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from current `main`, keep branches short-lived, and delete them after merge; release versions belong in release commits, tags, and milestones, not feature branch names.
-- Scope is a code area, not a version: `android`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`. Omit it for repo-wide changes. Never write `feat(0.4.1): …`; release bumps are `chore(release): bump to 0.4.1 (versionCode 5)`, and the version belongs in the body or the tag.
+- Scope is a code area, not a version: `android`, `web`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`. Omit it for repo-wide changes. Never write `feat(0.4.1): …`; release bumps are `chore(release): bump to 0.4.1 (versionCode 5)`, and the version belongs in the body or the tag.
 - Summary: lowercase, imperative, no trailing period, roughly 72 characters or less. Describe one user-visible change, not a list of unrelated items.
 - One logical change per commit. Keep features, fixes, docs and build-environment tweaks separate; a `gradle.properties` workaround for Chinese paths gets its own commit instead of shipping with a feature.
 - Body: one blank line after the summary, explain why (not just what), wrap near 72 columns; bullet lists are fine.
 - Breaking changes: `feat(api)!: …` plus a `BREAKING CHANGE:` footer.
 - PR titles use the same format. The repository allows squash merges, so the PR title (or the single commit headline) becomes the headline on `main`; treat it as the final commit message.
 - Reference issues in the footer (`Refs #12`), not in the summary.
+- After opening a PR, complete the required follow-up in [PR follow-up checklist](#pr-follow-up-checklist). Creating the PR alone does not finish triage.
+- For every code or documentation commit, follow [Mandatory change workflow](#mandatory-change-workflow). Do not commit directly to `main`.
+- When starting local development, immediately create the matching Git worktree required by [Local development worktrees](#local-development-worktrees). Do not perform feature work directly in the main repository checkout while other agents or parallel tasks may need it.
+
+## Local development worktrees
+
+Start work by creating the short-lived branch, then immediately create a dedicated worktree for that branch. The main repository checkout is reserved for synchronization, integration review, and administrative work; development happens inside the branch-specific worktree.
+
+Use a deterministic directory name derived from the repository name and branch name:
+
+```text
+<repository-name>-worktree-<branch-type>-<short-kebab-summary>
+```
+
+For this repository, create sibling worktrees under `A:\GITHUB_MY_REP`:
+
+```text
+../InputA-worktree-feat-sentence-translation
+../InputA-worktree-fix-explore-level-filter
+../InputA-worktree-docs-pr-follow-up-compliance
+../InputA-worktree-ci-android-debug-build
+```
+
+Rules:
+
+- The branch remains `<type>/<short-kebab-summary>`; in the worktree path, replace the branch slash with one hyphen.
+- Use the same type and summary in both the branch and worktree name. Do not add versions, usernames, issue numbers, agent names, or release names.
+- Keep one branch and one worktree paired. Before creating a worktree, run `git worktree list` and reuse the matching existing worktree if the branch is already checked out.
+- Fetch the latest `main` before creating the branch/worktree pair and base it on `origin/main`.
+- Run Gradle, tests, documentation checks, commits, and branch-local review fixes inside the worktree. Check `git status` there before staging.
+- Do not rename or delete a PR head branch while its worktree is active without coordinating with the maintainer.
+- After a branch is merged or abandoned, verify the worktree is clean, remove it with `git worktree remove <path>`, then run `git worktree prune`.
+- Existing nonstandard worktrees should be migrated with `git worktree move <old-path> <new-path>` when their branch is idle and has no uncommitted changes.
+
+Example setup:
+
+```bash
+cd /absolute/path/to/InputA
+git fetch origin
+git worktree add ../InputA-worktree-feat-example -b feat/example origin/main
+# Work and commit inside ../InputA-worktree-feat-example.
+```
+
+Example cleanup after merge or abandonment:
+
+```bash
+git worktree remove ../InputA-worktree-feat-example
+git worktree prune
+```
+
+## Mandatory change workflow
+
+Every repository change must move through the same branch-to-merge lifecycle. Do not commit directly to `main`, and do not treat a local commit as delivered until its PR has passed the required checks and the completed branch has been cleaned up.
+
+1. Synchronize with the remote:
+   - Fetch the latest `origin/main` from the main repository checkout.
+   - Check `git status` before creating the branch. Preserve unrelated user changes and stage only files owned by the current task.
+2. Create a short-lived branch from `origin/main` using `<type>/<short-kebab-summary>`.
+3. Immediately create the matching worktree using the naming convention in [Local development worktrees](#local-development-worktrees). Work, test, and commit inside that worktree; never commit task changes directly in the main checkout.
+4. Push the branch to `origin` and record the commit SHA.
+5. Create a PR targeting `main`, complete the English PR template, and perform the [PR follow-up checklist](#pr-follow-up-checklist) for labels, milestone, and Projects.
+6. Wait for CI to pass. If follow-up commits are made, push them and wait for the new check result before merging.
+7. Squash-merge the PR after CI and all merge gates are satisfied.
+8. After merge, verify the PR state is `MERGED` and the merged commit is visible on `origin/main`. Remove branch artifacts in this order:
+   - Confirm the worktree is clean, remove it with `git worktree remove <path>`, then run `git worktree prune`.
+   - Delete the remote branch with `git push origin --delete <branch>`.
+   - Fetch with `git fetch origin --prune`, then delete the local branch. Because the repository uses squash merges, verify the merged content before using `git branch -D <branch>` when `-d` cannot recognize the squashed ancestry.
+   - Confirm `git branch -a --list '*<branch-name>*'` and `git worktree list` no longer show the completed branch or worktree.
+9. Return to the main checkout only to fetch or synchronize `origin/main`. Do not leave completed feature branches, stale remote-tracking branches, or temporary worktrees behind.
+
+Canonical lifecycle:
+
+```bash
+cd /absolute/path/to/InputA
+git fetch origin
+git worktree add ../InputA-worktree-feat-example -b feat/example origin/main
+git -C ../InputA-worktree-feat-example add <owned-files>
+git -C ../InputA-worktree-feat-example commit -m "feat(scope): summary"
+git -C ../InputA-worktree-feat-example push -u origin feat/example
+gh pr create --base main --head feat/example --fill
+gh pr checks <number> --watch
+gh pr merge <number> --squash --match-head-commit <sha>
+gh pr view <number> --json state,mergedAt,mergeCommit
+git -C ../InputA-worktree-feat-example status --short
+git worktree remove ../InputA-worktree-feat-example
+git worktree prune
+git push origin --delete feat/example
+git fetch origin --prune
+git branch -D feat/example
+```
+
+## PR follow-up checklist
+
+Creating a PR is not complete until its GitHub description and planning metadata are filled in. Perform this checklist after opening the PR, after scope-changing pushes, and before requesting merge.
+
+- Use the English PR template fields: `Summary`, `Changes`, `Test plan`, `Screenshots or recordings`, `Risks and compatibility`, and `Checklist`. Replace placeholder comments with English content, remove template comments, and leave only checklist items that were actually verified.
+- When selecting an Issue template for a linked Issue or for follow-up triage, use the English Issue forms unless the contributor intentionally submitted the Simplified Chinese form. Keep code identifiers, commands, paths, and commit examples verbatim.
+- Apply semantic labels from the repository taxonomy:
+  - `bug` for `fix` PRs and reproducible defects.
+  - `enhancement` for user-visible `feat` PRs and feature requests.
+  - `documentation` for `docs`-only changes.
+  - `accessibility` for accessibility-only fixes or audits.
+  - `help wanted` or `good first issue` only when the maintainer explicitly marks the work for outside contributors.
+  - `duplicate`, `invalid`, or `question` only after triage confirms that classification.
+  Do not encode versions, release names, usernames, issue numbers, or P0/P1/P2 priority in labels; priority belongs in the GitHub Project field.
+- Assign the PR and its linked Issue to the release milestone `vX.Y.Z` that matches the planned release. If the milestone does not exist and the release scope is already approved, create it before merging; move unfinished work to the next milestone instead of leaving it unassigned.
+- Add the PR and linked Issue to the account-level `Languages Learning` project. Set `Priority`, `Size`, `Estimate`, `Iteration`, `Start date`, and `Target date` according to the [GitHub Projects conventions](#github-projects-conventions), and keep the fields consistent when scope changes.
+- Recheck the PR title, linked milestone, labels, project status, and `Pre-merge checklist` after every history rewrite or scope-changing push. Update stale checklist items instead of leaving the original entries behind.
+- Verify CI and branch-protection status before requesting merge. Do not claim a green build, manual check, screenshot, or localization pass unless its command or evidence is recorded in the PR.
+- If the PR is duplicated, superseded, or depends on another branch, preserve its PR number until consolidation is agreed. Do not rename or delete the head branch without coordinating with the maintainer.
 
 ## Parallel agent development
 
 Multiple agents may develop features in parallel only when each agent has its own branch and Git worktree.
 
 - Never let two agents edit the same working directory at the same time.
-- Create every feature branch from the latest `main` and keep it short-lived.
+- Create every feature branch from the latest `main` and keep it short-lived. Immediately pair it with a branch-specific worktree following [Local development worktrees](#local-development-worktrees).
 - Assign non-overlapping modules or files to each agent. Shared interfaces, design tokens, build configuration, version metadata, CI, and release files must have one owner or be changed serially.
 - Put cross-cutting changes in a separate, focused PR instead of mixing them into a feature branch.
 - Each agent must verify its own branch and record the commands and manual checks in its PR. One agent must not claim another branch's results.
@@ -55,10 +182,10 @@ Multiple agents may develop features in parallel only when each agent has its ow
 Example worktree setup:
 
 ```bash
+cd /absolute/path/to/InputA
 git fetch origin
-git worktree add ../inputa-feature-name -b feat/feature-name origin/main
-# Work and commit inside ../inputa-feature-name.
-git worktree remove ../inputa-feature-name
+git worktree add ../InputA-worktree-feat-feature-name -b feat/feature-name origin/main
+# Work and commit inside ../InputA-worktree-feat-feature-name.
 ```
 
 ## Review comment conventions
@@ -71,7 +198,7 @@ Review bodies and PR comments use an English skeleton with Chinese explanations,
 
 ## Versioning, milestones and releases
 
-The shipped version is `versionName` + `versionCode` in `android/app/build.gradle.kts`; bump both in the same commit and update the version badges in both READMEs.
+The shipped Android version is `versionName` + `versionCode` in `android/app/build.gradle.kts`; bump both in the same commit and update the version badges in both READMEs. Web currently has no independent release version.
 
 - Treat the project as SemVer `0.x`: new features or user-visible behavior changes take a minor bump (`0.4.0` → `0.5.0`), and a patch bump (`0.4.0` → `0.4.1`) is only for backwards-compatible fixes. Do not use a patch release to ship features.
 - `versionCode` increases by one on every release and is never reused.
@@ -97,9 +224,11 @@ Release planning also lives in the account-level `Languages Learning` project on
 
 **All remote data comes from LingQ.** `LingqApi` is a hand-rolled OkHttp client against `https://www.lingq.com/` — there is no backend in this repo. LingQ's responses have no public schema and mix camelCase with snake_case, so parsing is intentionally lenient: the `JsonObject.string/int/double/bool/obj/array()` helpers in `Models.kt` try several key aliases and return null instead of throwing, and `unwrapSingle`/`collectObjects` unwrap DRF wrappers such as `{results:[...]}`. Preserve that tolerance when adding endpoints. Failures surface as `ApiException(code, message)`.
 
-**Local-first word state.** `LocalWordStore` (SharedPreferences, one map per language) is the source of truth for word status: `-1` ignored, `0` known, `1..4` LingQ proficiency. This state is deliberately never written back to LingQ. Vocabulary, review, stats, home counters, and lesson Total/Unique/New are computed locally — `computeLessonWordStats` combines the local record map with cached lesson text (`LessonTextCache`); server-provided counts are only fallbacks when no text is cached. Do not "fix" this by syncing LingQ cards/known-words endpoints. Other local stores: `BookmarkStore`, `PlaylistStore`, `LastLessonStore`, `AiWordCacheStore`, `SettingsStore`; session/token and AI credentials live in `EncryptedSharedPreferences` via `SessionStore`.
+**Local-first word state.** `LocalWordStore` (SharedPreferences, one map per language) and the Web `words` IndexedDB store are the source of truth for word status: `-1` ignored, `0` known, `1..4` LingQ proficiency. This state is deliberately never written back to LingQ. Vocabulary, review, stats, home counters, and lesson Total/Unique/New are computed locally — `computeLessonWordStats` combines the local record map with cached lesson text (`LessonTextCache`); server-provided counts are only fallbacks when no text is cached. Do not "fix" this by syncing LingQ cards/known-words endpoints. Other local stores: `BookmarkStore`, `PlaylistStore`, `LastLessonStore`, `AiWordCacheStore`, `SettingsStore`; session/token and AI credentials live in `EncryptedSharedPreferences` via `SessionStore`.
 
-**Reader text pipeline.** `LingqApi.sentences()` prefers the sentences endpoint, aligns each server token to the sentence text by substring position (`alignServerTokens`), and falls back to local tokenization. `tokenizeWords()` uses ICU `BreakIterator` for dictionary languages (`zh`, `ja`, `th`, `ko`, `lo`, `km`, `my`, `yue`) and a word-boundary regex for spaced scripts. `ReaderViewModel` renumbers sentence indices to list positions and keeps `wordStates` in memory keyed by lowercase term. Page mode measures real text layout (`measurePageBreaks` in `ReaderScreen.kt`) instead of using a fixed sentences-per-page count.
+**Web client and proxy.** `web/` is a Vite/React SPA with React Query, React Router, IndexedDB, and Zod. `AuthContext` keeps the LingQ Token only in memory; reloading requires signing in again. `server/proxy.mjs` is shared by Vite and the production Node static server. It forwards a strict route/method/query allowlist to the fixed `https://www.lingq.com` origin, accepts only password-login POST bodies, strips cookies, disables redirects, and never exposes arbitrary upstream URLs. The Web proxy is an approved stateless transport exception, not permission to add a business backend or database.
+
+**Reader text pipeline.** Android uses `LingqApi.sentences()` and aligns server tokens before local tokenization. Web uses `parseSentences` for primitive/keyed/nested/token-only responses, then `domain/tokenize.ts` with `Intl.Segmenter` for dictionary languages (`zh`, `ja`, `th`, `ko`, `lo`, `km`, `my`, `yue`) and a Unicode word-boundary regex for spaced scripts. `ReaderPage` renumbers sentence indices, guards stale meaning requests, and measures real DOM layout for page breaks.
 
 **Audio.** `MediaPlayer` fails on LingQ's remote URLs (`error -38`), so `LessonPlayer` and `WordPronouncer` always download through `AudioDownloader` (OkHttp → `cacheDir`) before playing. `AudioDownloader` sends `Authorization` only to LingQ API hosts; S3 rejects it as a malformed AWS signature. Word pronunciation tries LingQ TTS first and falls back to system `TextToSpeech`. Daily reminders use `AlarmManager` + `ReadingReminderReceiver` (rescheduled on boot).
 
@@ -112,5 +241,5 @@ Release planning also lives in the account-level `Languages Learning` project on
 - Code comments and `PLAN.md` are written in Chinese; user-visible strings are English keys translated by the dictionary. Add a translation entry whenever you add UI text, otherwise Chinese mode shows the English key.
 - Coroutines: `runCatching` swallows `CancellationException`. Rethrow cancellation (see `ExploreViewModel.fetch`) and guard stale writes with `collectLatest` or generation counters; otherwise an old request can overwrite newer state.
 - Keep the status encoding consistent: local storage uses `0` for known, while the vocabulary UI uses `5` for known and maps it back (`VocabularyViewModel.updateStatus`).
-- No unit/instrumentation tests exist. CI builds the debug APK for pull requests and pushes to `main`; verify local changes with `./gradlew :app:compileDebugKotlin` or `:app:assembleDebug`; the current build emits only Kotlin annotation-target warnings.
-- Do not introduce a self-hosted backend, a configurable LingQ origin, or plaintext credential storage. Login supports both username/password and a pasted LingQ token; the token stays encrypted and is never logged.
+- Android has no unit/instrumentation tests; CI builds the debug APK. Web has Vitest domain/parser tests, Node proxy allowlist tests, Playwright browser tests, lint/typecheck, and a production build; run the applicable Web commands after changes.
+- Do not introduce a business backend, a configurable LingQ origin, or plaintext credential storage. The approved Web exception is a minimal stateless same-origin proxy with a fixed allowlist. Android encrypts its session token; Web keeps the Token only in memory and never logs it.
