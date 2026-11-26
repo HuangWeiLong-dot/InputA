@@ -76,6 +76,7 @@ fun FrostedBottomBar(
     tab: NextTab,
     onTab: (NextTab) -> Unit,
     onCreate: () -> Unit,
+    createContentDescription: String,
     modifier: Modifier = Modifier,
     backdrop: GraphicsLayer? = null,
 ) {
@@ -115,7 +116,7 @@ fun FrostedBottomBar(
         ) {
             TabSlot(NextTab.Home, tab, onTab)
             TabSlot(NextTab.Explore, tab, onTab)
-            CreateSlot(onCreate)
+            CreateSlot(onCreate, createContentDescription)
             TabSlot(NextTab.Vocabulary, tab, onTab)
             TabSlot(NextTab.Playlist, tab, onTab)
         }
@@ -162,7 +163,10 @@ private fun androidx.compose.foundation.layout.RowScope.TabSlot(
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.CreateSlot(onCreate: () -> Unit) {
+private fun androidx.compose.foundation.layout.RowScope.CreateSlot(
+    onCreate: () -> Unit,
+    contentDescription: String,
+) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.9f else 1f, label = "create-press")
@@ -183,7 +187,7 @@ private fun androidx.compose.foundation.layout.RowScope.CreateSlot(onCreate: () 
         ) {
             Icon(
                 imageVector = LqIcons.Plus,
-                contentDescription = "Create",
+                contentDescription = contentDescription,
                 tint = Color.White,
                 modifier = Modifier.size(24.dp),
             )

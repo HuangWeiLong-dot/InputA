@@ -41,6 +41,7 @@ import com.inputa.next.core.design.LocalAppLanguage
 import com.inputa.next.core.design.LqColors
 import com.inputa.next.core.design.NextTab
 import com.inputa.next.core.design.NextTheme
+import com.inputa.next.core.design.translate
 import com.inputa.next.core.notify.ReadingReminder
 import com.inputa.next.feature.auth.LoginScreen
 import com.inputa.next.feature.auth.LoginViewModel
@@ -49,6 +50,7 @@ import com.inputa.next.feature.course.CourseScreen
 import com.inputa.next.feature.explore.ExploreScreen
 import com.inputa.next.feature.home.HomeScreen
 import com.inputa.next.feature.imports.ImportScreen
+import com.inputa.next.feature.imports.ImportViewModel
 import com.inputa.next.feature.languages.LanguagePickerScreen
 import com.inputa.next.feature.lesson.LessonPreviewScreen
 import com.inputa.next.feature.playlist.PlaylistScreen
@@ -202,6 +204,14 @@ private fun Shell(
     var chatReturn by remember { mutableStateOf<Screen>(Screen.Tab) }
     var languagesReturn by remember { mutableStateOf<Screen>(Screen.Tab) }
     var reviewReturn by remember { mutableStateOf<Screen>(Screen.Tab) }
+    var importReturn by remember { mutableStateOf<Screen>(Screen.Tab) }
+    val importViewModel: ImportViewModel = hiltViewModel()
+
+    fun openImport(returnTo: Screen) {
+        importViewModel.consumeImported()
+        importReturn = returnTo
+        onScreen(Screen.Import)
+    }
 
     BackHandler(enabled = screen != Screen.Tab) {
         onScreen(
@@ -210,7 +220,8 @@ private fun Shell(
                 Screen.Chat -> chatReturn
                 Screen.Languages -> languagesReturn
                 Screen.Review -> reviewReturn
-                Screen.Method, Screen.Help, Screen.Import -> Screen.Settings
+                Screen.Import -> importReturn
+                Screen.Method, Screen.Help -> Screen.Settings
                 else -> Screen.Tab
             },
         )
@@ -304,8 +315,9 @@ private fun Shell(
             Screen.Languages -> LanguagePickerScreen(onBack = { onScreen(languagesReturn) })
 
             Screen.Import -> ImportScreen(
-                onBack = { onScreen(Screen.Settings) },
+                onBack = { onScreen(importReturn) },
                 onImported = onOpenLesson,
+                viewModel = importViewModel,
             )
 
             Screen.Chat -> ChatScreen(onBack = { onScreen(chatReturn) })
@@ -314,7 +326,7 @@ private fun Shell(
                 onBack = { onScreen(Screen.Tab) },
                 onSignedOut = onSignedOut,
                 onOpenStats = { onScreen(Screen.Stats) },
-                onOpenImport = { onScreen(Screen.Import) },
+                onOpenImport = { openImport(Screen.Settings) },
                 onOpenChat = {
                     chatReturn = Screen.Settings
                     onScreen(Screen.Chat)
@@ -337,7 +349,8 @@ private fun Shell(
             FrostedBottomBar(
                 tab = tab,
                 onTab = onTab,
-                onCreate = { onTab(NextTab.Explore) },
+                onCreate = { openImport(Screen.Tab) },
+                createContentDescription = LocalAppLanguage.current.translate("Import Lesson"),
                 backdrop = blurredLayer,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
