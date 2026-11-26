@@ -61,6 +61,26 @@ class SettingsStore @Inject constructor(
             if (appLanguage.value == "zh") "zh" else "en"
         }
 
+    /**
+     * 点词弹窗里释义/译文的语言（`zh` / `en` / `ja` / `ko`）。
+     * 空串表示跟随界面语言 —— 界面是中文就看中文释义。
+     */
+    private val _translationLanguage = MutableStateFlow(
+        prefs.getString(KEY_TRANSLATION_LANGUAGE, "").orEmpty(),
+    )
+    val translationLanguage = _translationLanguage.asStateFlow()
+
+    fun setTranslationLanguage(code: String) {
+        val normalized = if (code.isBlank()) "" else if (code in EXPLAIN_LANGUAGES) code else "en"
+        prefs.edit().putString(KEY_TRANSLATION_LANGUAGE, normalized).apply()
+        _translationLanguage.value = normalized
+    }
+
+    fun effectiveTranslationLanguage(): String =
+        translationLanguage.value.ifBlank {
+            if (appLanguage.value == "zh") "zh" else "en"
+        }
+
     /** 首页/资料库带序号课程的正序或倒序。 */
     private val _lessonSort = MutableStateFlow(
         runCatching { LessonSort.valueOf(prefs.getString(KEY_SORT, null).orEmpty()) }
@@ -98,6 +118,15 @@ class SettingsStore @Inject constructor(
     /** 点开新词时是否自动收录为 1 级 LingQ。 */
     private val _autoCreateLingq = MutableStateFlow(prefs.getBoolean(KEY_AUTO_LINGQ, true))
     val autoCreateLingq = _autoCreateLingq.asStateFlow()
+
+    /** LingQ 词典没有目标语言释义时，是否用机器翻译补上。 */
+    private val _autoTranslate = MutableStateFlow(prefs.getBoolean(KEY_AUTO_TRANSLATE, true))
+    val autoTranslate = _autoTranslate.asStateFlow()
+
+    fun setAutoTranslate(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_TRANSLATE, enabled).apply()
+        _autoTranslate.value = enabled
+    }
 
     /** 阅读器默认模式：Page / Sentence / Scroll。 */
     private val _readerMode = MutableStateFlow(prefs.getString(KEY_READER_MODE, "Page") ?: "Page")
@@ -199,12 +228,14 @@ class SettingsStore @Inject constructor(
         const val KEY_TTS = "reader_auto_tts"
         const val KEY_APP_LANGUAGE = "app_language"
         const val KEY_AI_EXPLAIN_LANGUAGE = "ai_explain_language"
+        const val KEY_TRANSLATION_LANGUAGE = "translation_language"
         const val KEY_SORT = "lesson_sort"
         const val KEY_DAILY_GOAL = "daily_goal"
         const val KEY_REVIEW_SIZE = "review_session_size"
         const val KEY_REVIEW_RANDOM = "review_random"
         const val KEY_PRONOUNCE_TAP = "pronounce_on_tap"
         const val KEY_AUTO_LINGQ = "auto_create_lingq"
+        const val KEY_AUTO_TRANSLATE = "word_auto_translate"
         const val KEY_READER_MODE = "reader_mode"
         const val KEY_REMINDER = "reminder_enabled"
         const val KEY_REMINDER_HOUR = "reminder_hour"

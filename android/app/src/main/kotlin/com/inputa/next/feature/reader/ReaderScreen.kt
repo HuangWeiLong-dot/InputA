@@ -8,6 +8,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -83,9 +84,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -145,6 +148,7 @@ fun ReaderScreen(
     val paragraphSpacing by viewModel.paragraphSpacing.collectAsStateWithLifecycle()
     val wordSpacing by viewModel.wordSpacing.collectAsStateWithLifecycle()
     val autoTts by viewModel.autoTts.collectAsStateWithLifecycle()
+    val autoTranslate by viewModel.autoTranslate.collectAsStateWithLifecycle()
     val playerState by viewModel.playerState.collectAsStateWithLifecycle()
     val speaker = rememberSpeaker(viewModel.language)
     // 中日韩/泰文的字形几乎占满整个字身，色块要按它们量高度，否则字头会被切掉。
@@ -283,6 +287,7 @@ fun ReaderScreen(
                         onNext = viewModel::next,
                         onPageSelected = viewModel::setPage,
                         onPageBreaks = viewModel::setPageBreaks,
+                        onSentenceLongPress = viewModel::translateSentence,
                         onToken = { sentenceIndex, tokenIndex, anchor ->
                             val token = state.sentences
                                 .getOrNull(sentenceIndex)
@@ -369,6 +374,9 @@ fun ReaderScreen(
                     onExplain = { viewModel.explainWord(token, sentence.text) },
                     meanings = state.meanings,
                     meaningsLoading = state.meaningsLoading,
+                    machine = state.machine,
+                    machineLoading = state.machineLoading,
+                    translateEnabled = autoTranslate,
                     currentLevel = wordLevel(token, state.wordStates),
                     onDismiss = {
                         tokenAnchor = null
@@ -380,6 +388,16 @@ fun ReaderScreen(
                     },
                 )
             }
+        }
+
+        state.sentenceSheet?.let { sheet ->
+            SentenceTranslationSheet(
+                original = sheet.original,
+                translation = sheet.translation,
+                loading = sheet.loading,
+                disabled = sheet.disabled,
+                onDismiss = viewModel::dismissSentence,
+            )
         }
 
         if (showSettings) {
@@ -611,6 +629,7 @@ private fun ReaderBody(
     onNext: () -> Unit,
     onPageSelected: (Int) -> Unit,
     onPageBreaks: (List<IntRange>) -> Unit,
+    onSentenceLongPress: (Int) -> Unit,
     onToken: (Int, Int, Rect) -> Unit,
 ) {
     val drag = remember(mode) { floatArrayOf(0f) }
@@ -663,6 +682,7 @@ private fun ReaderBody(
                         .fillMaxWidth()
                         .padding(top = if (sentence.paragraphStart) paragraphGap else 0.dp),
                     onToken = { tokenIndex, anchor -> onToken(sentence.index, tokenIndex, anchor) },
+                    onSentenceLongPress = { onSentenceLongPress(sentence.index) },
                 )
             }
         }
@@ -736,6 +756,7 @@ private fun ReaderBody(
                                     .fillMaxWidth()
                                     .padding(top = if (sentence.paragraphStart) paragraphGap else 0.dp),
                                 onToken = { tokenIndex, anchor -> onToken(sentence.index, tokenIndex, anchor) },
+                                onSentenceLongPress = { onSentenceLongPress(sentence.index) },
                             )
                         }
                     }
@@ -770,6 +791,7 @@ private fun ReaderBody(
                         fullHeightGlyphs = fullHeightGlyphs,
                         modifier = Modifier.fillMaxWidth(),
                         onToken = { tokenIndex, anchor -> onToken(sentence.index, tokenIndex, anchor) },
+                        onSentenceLongPress = { onSentenceLongPress(sentence.index) },
                     )
                 }
             }
@@ -1050,6 +1072,7 @@ private fun SentenceText(
     fullHeightGlyphs: Boolean,
     modifier: Modifier = Modifier,
     onToken: (Int, Rect) -> Unit,
+    onSentenceLongPress: () -> Unit,
 ) {
     // 只按句子缓存排版结果：点词会改词库状态、重建 AnnotatedString，但字形位置不变。
     // 之前把 wordStates 写进 key，点一下新词就把 layout 清成 null，色块要等下一次
@@ -1061,6 +1084,7 @@ private fun SentenceText(
     }
     // 色块高度跟着字形走，与行距、词距无关；圆角随色块大小一起缩放。
     val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
     val fontSizePx = with(density) { fontSize.sp.toPx() }
     val band = remember(fullHeightGlyphs, fontSizePx) {
         measureGlyphBand(fullHeightGlyphs, fontSizePx)
@@ -1165,7 +1189,7 @@ private fun SentenceText(
                 }
             }
             .pointerInput(rendered.text, sentence.index) {
-                detectTapGestures { offset ->
+                detectTapGestures(onLongPress = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onSentenceLongPress() }) { offset ->
                     val result = layout ?: return@detectTapGestures
                     val charOffset = result.getOffsetForPosition(offset)
                     val index = rendered.tokenRanges.indexOfFirst { charOffset in it }
@@ -1686,6 +1710,9 @@ private fun WordPopup(
     onExplain: () -> Unit,
     meanings: List<Meaning>,
     meaningsLoading: Boolean,
+    machine: String?,
+    machineLoading: Boolean,
+    translateEnabled: Boolean,
     currentLevel: Int?,
     onDismiss: () -> Unit,
     onState: (WordState) -> Unit,
@@ -1782,7 +1809,13 @@ private fun WordPopup(
                     RawText(it, color = LqColors.muted, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(LqSpace.md))
-                MeaningList(meanings = meanings, loading = meaningsLoading, inline = token.translation)
+                MeaningList(
+                    meanings = meanings,
+                    loading = meaningsLoading,
+                    // 翻译中先空着，避免先闪一行英文；翻译结束后有译文用译文，
+                    // 没有（目标语言与学习语言相同、或翻译失败）就回退 LingQ 自带的那句。
+                    inline = if (translateEnabled && machineLoading) null else (machine ?: token.translation),
+                )
                 Spacer(Modifier.height(LqSpace.lg))
                 Row(
                     modifier = Modifier
@@ -1839,10 +1872,12 @@ private fun LevelBadge(level: Int) {
 
 @Composable
 private fun MeaningList(meanings: List<Meaning>, loading: Boolean, inline: String?) {
+    val extra = inline?.takeIf { it.isNotBlank() }?.let { Meaning(it, null) }
+    // 有最后一行译文时给它留一个位置，避免被 4 条上限挤掉。
+    val room = if (extra != null) 3 else 4
     val entries = buildList {
-        addAll(meanings)
-        val fallback = inline?.takeIf { it.isNotBlank() }
-        if (fallback != null && none { it.text == fallback }) add(Meaning(fallback, null))
+        addAll(meanings.take(room))
+        if (extra != null && none { it.text == extra.text }) add(extra)
     }.take(4)
     when {
         loading && entries.isEmpty() -> MeaningBox("Looking up…")
@@ -1993,3 +2028,75 @@ private fun LessonCompleteOverlay(
     }
 }
 
+
+/** 长按句子后的底部面板：原文 + 整句译文。 */
+@Composable
+private fun SentenceTranslationSheet(
+    original: String,
+    translation: String?,
+    loading: Boolean,
+    disabled: Boolean,
+    onDismiss: () -> Unit,
+) {
+    // 这个面板不是 Popup，不加 BackHandler 的话返回键会命中 Activity 的全局返回，直接退出阅读页。
+    BackHandler { onDismiss() }
+    val noRipple = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LqColors.scrim)
+            .clickable(interactionSource = noRipple, indication = null, onClick = onDismiss),
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .clip(RoundedCornerShape(topStart = LqRadius.sheet, topEnd = LqRadius.sheet))
+                .background(LqColors.surface)
+                .clickable(interactionSource = noRipple, indication = null) {}
+                .navigationBarsPadding()
+                .padding(horizontal = LqSpace.xl, vertical = LqSpace.lg),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Sentence",
+                    color = LqColors.textStrong,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(LqColors.surfaceHigh)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(LqIcons.X, contentDescription = "Close", tint = LqColors.muted, modifier = Modifier.size(15.dp))
+                }
+            }
+            // 长句 + 长译文时内部滚动，不会把面板顶出屏幕。
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Spacer(Modifier.height(LqSpace.md))
+                RawText(original, color = LqColors.muted, fontSize = 14.sp, lineHeight = 21.sp)
+                Spacer(Modifier.height(LqSpace.md))
+                when {
+                    disabled -> Text("Translation is off", color = LqColors.faint, fontSize = 15.sp)
+                    loading -> Text("Translating…", color = LqColors.faint, fontSize = 15.sp)
+                    translation.isNullOrBlank() -> Text(
+                        "No translation available",
+                        color = LqColors.faint,
+                        fontSize = 15.sp,
+                    )
+                    else -> RawText(translation, color = LqColors.text, fontSize = 17.sp, lineHeight = 25.sp)
+                }
+            }
+        }
+    }
+}

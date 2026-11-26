@@ -187,14 +187,9 @@ fun ReviewScreen(
                                     fontSize = 13.sp,
                                 )
                             } else {
-                                val meanings = buildList {
-                                    addAll(state.meanings)
-                                    val inline = card.translation?.takeIf { it.isNotBlank() }
-                                    if (inline != null && none { it.text == inline }) {
-                                        add(Meaning(inline, null))
-                                    }
-                                }.take(3)
-                                if (meanings.isEmpty()) {
+                                val meanings = state.meanings.take(3)
+                                val translation = state.translation?.takeIf { it.isNotBlank() }
+                                if (meanings.isEmpty() && translation == null) {
                                     Text(
                                         text = if (state.meaningsLoading) "Looking up…" else "No saved meaning",
                                         color = LqColors.faint,
@@ -222,6 +217,16 @@ fun ReviewScreen(
                                                 )
                                             }
                                         }
+                                    }
+                                    // 译文单独一行，不被 meanings 的 take(3) 截掉。
+                                    if (translation != null) {
+                                        Spacer(Modifier.height(6.dp))
+                                        RawText(
+                                            text = translation,
+                                            color = LqColors.text,
+                                            fontSize = 17.sp,
+                                            textAlign = TextAlign.Center,
+                                        )
                                     }
                                 }
                             }

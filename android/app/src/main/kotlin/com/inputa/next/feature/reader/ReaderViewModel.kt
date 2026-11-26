@@ -11,6 +11,7 @@ import com.inputa.next.core.data.Meaning
 import com.inputa.next.core.data.ReaderSentence
 import com.inputa.next.core.data.ReaderToken
 import com.inputa.next.core.data.SessionStore
+import com.inputa.next.core.data.WordMeanings
 import com.inputa.next.core.data.local.AiWordCacheStore
 import com.inputa.next.core.data.local.LocalWordStore
 import com.inputa.next.core.data.local.SettingsStore
@@ -45,6 +46,16 @@ data class WordSelection(
     val tokenIndex: Int,
 )
 
+/** 长按句子后底部弹出的原文 + 译文。 */
+data class SentenceSheet(
+    val index: Int,
+    val original: String,
+    val translation: String? = null,
+    val loading: Boolean = true,
+    /** 用户关掉了翻译开关：面板给出明确提示，而不是「暂无翻译」。 */
+    val disabled: Boolean = false,
+)
+
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
     private val api: LingqApi,
@@ -57,6 +68,7 @@ class ReaderViewModel @Inject constructor(
     private val pronouncer: WordPronouncer,
     private val ai: AiClient,
     private val aiCache: AiWordCacheStore,
+    private val wordMeanings: WordMeanings,
 ) : ViewModel() {
 
     /** AI 单词精讲的当前请求与结果。 */
@@ -85,6 +97,12 @@ class ReaderViewModel @Inject constructor(
         val wordStates: Map<String, WordState> = emptyMap(),
         val meanings: List<Meaning> = emptyList(),
         val meaningsLoading: Boolean = false,
+        /** 弹窗最后一行的机器译文（默认中文）；null 表示还没回来或已关闭。 */
+        val machine: String? = null,
+        /** 最后一行还在翻译中：这段时间不要用 LingQ 的英文译文占位，避免闪一下。 */
+        val machineLoading: Boolean = false,
+        /** 长按句子的翻译面板；null 表示没打开。 */
+        val sentenceSheet: SentenceSheet? = null,
         val notice: String? = null,
         val finished: Boolean = false,
         val aiWord: AiWordState? = null,
@@ -96,6 +114,9 @@ class ReaderViewModel @Inject constructor(
     /** 本次阅读会话内的释义缓存，重复点同一个词不再请求。 */
     private val meaningCache = HashMap<String, List<Meaning>>()
 
+    /** 机器译文缓存，key 是「目标语言|小写单词」。 */
+    private val translationCache = HashMap<String, String>()
+
     private var aiJob: Job? = null
 
     val language: String get() = session.language()
@@ -104,6 +125,8 @@ class ReaderViewModel @Inject constructor(
     val paragraphSpacing = settings.paragraphSpacing
     val wordSpacing = settings.wordSpacing
     val autoTts = settings.autoTts
+    /** 关掉「翻译单词」时，弹窗最后一行仍用 LingQ 自带的那句译文。 */
+    val autoTranslate = settings.autoTranslate
     val playerState = player.state
 
     init {
@@ -317,25 +340,28 @@ class ReaderViewModel @Inject constructor(
     fun select(sentenceIndex: Int, tokenIndex: Int) {
         val token = _state.value.sentences.getOrNull(sentenceIndex)?.tokens?.getOrNull(tokenIndex)
         val selection = WordSelection(sentenceIndex, tokenIndex)
+        val translateEnabled = settings.autoTranslate.value
         _state.update {
             it.copy(
                 selection = selection,
                 meanings = emptyList(),
                 meaningsLoading = token != null,
+                machine = null,
+                machineLoading = token != null && translateEnabled,
             )
         }
         if (token == null) return
         val term = token.text.trim()
         if (term.isBlank()) return
-        val key = term.lowercase()
+        val wordKey = term.lowercase()
 
         // 点开一个还没记录的新词就视为收录 1 级：蓝色块立即变黄。
         // 用户可以在 Word Popup 设置里关掉自动收录。
-        if (settings.autoCreateLingq.value && _state.value.wordStates[key] == null) {
+        if (settings.autoCreateLingq.value && _state.value.wordStates[wordKey] == null) {
             localWords.put(language, term, 1)
             _state.update {
                 if (it.selection == selection) {
-                    it.copy(wordStates = it.wordStates + (key to WordState.Lingq(1)))
+                    it.copy(wordStates = it.wordStates + (wordKey to WordState.Lingq(1)))
                 } else {
                     it
                 }
@@ -345,19 +371,33 @@ class ReaderViewModel @Inject constructor(
         if (settings.pronounceOnTap.value) pronouncer.speak(language, term)
 
         // 已查过的词直接用缓存，弹窗不再等接口。
-        meaningCache[key]?.let { cached ->
+        val cachedMeanings = meaningCache[wordKey]
+        val target = settings.effectiveTranslationLanguage()
+        val cachedMachine = translationCache["$target|$wordKey"]
+        if (cachedMeanings != null) {
             _state.update {
                 if (it.selection == selection) {
-                    it.copy(meanings = cached, meaningsLoading = false)
+                    it.copy(
+                        meanings = cachedMeanings,
+                        meaningsLoading = false,
+                        machine = cachedMachine,
+                        machineLoading = translateEnabled && cachedMachine == null,
+                    )
                 } else {
                     it
                 }
             }
+            // 之前翻译失败（或语言相同）时缓存里没有译文，这次仍然要试一次，
+            // 否则关掉再打开「翻译单词」后同一个词会永远空着。
+            if (translateEnabled && cachedMachine == null) {
+                viewModelScope.launch { loadMachine(selection, term, target, wordKey) }
+            }
             return
         }
         viewModelScope.launch {
-            val result = runCatching { api.meanings(language, term) }.getOrDefault(emptyList())
-            if (result.isNotEmpty()) meaningCache[key] = result
+            // 词典释义保持原样；最后一行另外换成机器翻译（默认中文）。
+            val result = wordMeanings.dictionary(language, term)
+            if (result.isNotEmpty()) meaningCache[wordKey] = result
             _state.update {
                 if (it.selection == selection) {
                     it.copy(meanings = result, meaningsLoading = false)
@@ -365,10 +405,55 @@ class ReaderViewModel @Inject constructor(
                     it
                 }
             }
+            if (translateEnabled) {
+                loadMachine(selection, term, target, wordKey)
+            } else {
+                _state.update { if (it.selection == selection) it.copy(machineLoading = false) else it }
+            }
+        }
+    }
+
+    /** 只负责弹窗最后一行：查到就更新，查不到就把 loading 收掉（UI 会回退 LingQ 自带译文）。 */
+    private suspend fun loadMachine(selection: WordSelection, term: String, target: String, wordKey: String) {
+        val key = "$target|$wordKey"
+        val machine = translationCache[key] ?: wordMeanings.translation(language, term)?.also { translationCache[key] = it }
+        _state.update {
+            if (it.selection == selection) it.copy(machine = machine, machineLoading = false) else it
         }
     }
 
     fun dismissSelection() = _state.update { it.copy(selection = null) }
+
+    /** 长按句子：先弹面板，再把整句翻成设置里的释义语言。 */
+    fun translateSentence(index: Int) {
+        val sentence = _state.value.sentences.getOrNull(index) ?: return
+        val enabled = settings.autoTranslate.value
+        _state.update {
+            it.copy(
+                sentenceSheet = SentenceSheet(
+                    index = index,
+                    original = sentence.text,
+                    loading = enabled,
+                    disabled = !enabled,
+                ),
+            )
+        }
+        // 翻译开关关着就不发请求，面板直接说明原因。
+        if (!enabled) return
+        viewModelScope.launch {
+            val translation = wordMeanings.sentence(language, sentence.text)
+            _state.update { state ->
+                val sheet = state.sentenceSheet
+                if (sheet != null && sheet.index == index && sheet.original == sentence.text) {
+                    state.copy(sentenceSheet = sheet.copy(translation = translation, loading = false))
+                } else {
+                    state
+                }
+            }
+        }
+    }
+
+    fun dismissSentence() = _state.update { it.copy(sentenceSheet = null) }
 
     /** 点词弹窗里的 AI 按钮：优先读本机缓存，没有才请求大模型。 */
     fun explainWord(token: ReaderToken, context: String) {
