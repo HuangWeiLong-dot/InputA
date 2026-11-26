@@ -5,24 +5,12 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 ![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-3DDC84?logo=android&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
-![Hilt](https://img.shields.io/badge/DI-Hilt-2C4F7C)
-![OkHttp](https://img.shields.io/badge/HTTP-OkHttp-3E4348)
-![kotlinx.serialization](https://img.shields.io/badge/JSON-kotlinx.serialization-7F52FF)
-![MVVM](https://img.shields.io/badge/architecture-MVVM-6E4AFF)
-![Gradle](https://img.shields.io/badge/Gradle-9.6-02303A?logo=gradle&logoColor=white)
-![JDK](https://img.shields.io/badge/JDK-17-007396?logo=openjdk&logoColor=white)
-![SDK](https://img.shields.io/badge/compile%2Ftarget%20SDK-37-3DDC84)
-![minSdk](https://img.shields.io/badge/minSdk-26-3DDC84)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![version](https://img.shields.io/badge/version-0.4.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-3DA639)
-![Storage](https://img.shields.io/badge/storage-SharedPreferences-15803D)
-![AI](https://img.shields.io/badge/AI-OpenAI%20compatible-412991)
-![Theme](https://img.shields.io/badge/theme-dark-111113)
-![UI](https://img.shields.io/badge/UI-English%20%7C%20%E4%B8%AD%E6%96%87-blue)
 
 一个非官方、本地优先的 [LingQ](https://www.lingq.com/) 阅读器。Android 提供完整功能；React Web 首版聚焦核心学习闭环：登录、首页、发现、课程/合集预览、阅读、本地词库与闪卡复习。
 
@@ -147,14 +135,18 @@ web/
 
 ## 贡献
 
-提交、审阅、开发与发布规范由 review 把关，完整规则见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+提交、审阅、开发与发布规范由 review 把关。贡献者要求见 [CONTRIBUTING.md](CONTRIBUTING.md)，分支/worktree、PR 后续处理与架构规范以 [AGENTS.md](AGENTS.md) 为准。
 
 - 提交信息与 PR 标题遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：`type(scope): 摘要`，摘要使用小写祈使句，不加句号。
 - 常用 type：`feat`、`fix`、`refactor`、`docs`、`test`、`perf`、`build`、`ci`、`chore`。
-- 分支名使用 `type/短横线摘要`，例如 `feat/sentence-translation`、`ci/android-debug-build`；不要放版本号、用户名或 issue 编号。从当前 `main` 创建分支，合并后删除。
+- 分支名使用 `type/短横线摘要`，例如 `feat/sentence-translation`、`ci/android-debug-build`；不要放版本号、用户名或 issue 编号。从最新的 `origin/main` 创建短生命周期分支，合并后删除。
+- 每次代码或文档修改都必须使用与分支配套的 worktree，命名为 `<repository>-worktree-<type>-<short-kebab-summary>`。开发与提交都在 worktree 中进行；主 checkout 仅用于同步、集成审阅和管理操作。详见 [Local development worktrees](AGENTS.md#local-development-worktrees)。
 - scope 写代码区段（`android`、`web`、`data`、`reader`、`explore`、`review`、`vocabulary`、`settings`、`design`），不要写版本号；发版用 `chore(release): bump to X.Y.Z (versionCode N)`。
 - 一个提交只做一件事，不要把功能、修复、文档和构建环境调整混在一起。
+- 完成规定的变更流程：同步、建分支、创建 worktree、验证、提交、推送、创建 PR、等待 CI、squash 合并，并清理已合并的 worktree 与分支。禁止直接向 `main` 提交。详见 [Mandatory change workflow](AGENTS.md#mandatory-change-workflow)。
 - 仓库使用 squash 合并，PR 标题会成为 `main` 上的提交标题，因此必须符合同样的格式。
+- 创建 PR 后，填写英文模板，并设置语义标签、`vX.Y.Z` 发布 milestone 和 `Languages Learning` 项目字段；范围发生变化后要重新核对。详见 [PR follow-up checklist](AGENTS.md#pr-follow-up-checklist)。
+- 并行代理必须使用各自独立的分支与 worktree，并分配不重叠的文件；每个代理只验证和记录自己的结果。
 - `0.x` 阶段遵循 SemVer：新增功能或行为变更走 minor，只有纯修复才走 patch；`versionName` 与 `versionCode` 一起递增，并同步更新 README 里的版本徽章。
 - Tag / Release 使用 `vX.Y.Z`（Release 标题为 `InputA X.Y.Z`）；milestone 使用同样的 `vX.Y.Z`，发版后关闭。
 
