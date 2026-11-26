@@ -7,6 +7,7 @@ import com.inputa.next.core.data.LingqApi
 import com.inputa.next.core.data.SessionStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +39,7 @@ class ImportViewModel @Inject constructor(
     fun setText(value: String) = _state.update { it.copy(text = value, error = null) }
     fun setCollection(value: String) = _state.update { it.copy(collection = value) }
     fun setLevel(value: Int) = _state.update { it.copy(level = value) }
+    fun consumeImported() = _state.update { it.copy(imported = null) }
 
     fun submit() {
         val current = _state.value
@@ -61,6 +63,8 @@ class ImportViewModel @Inject constructor(
                     level = current.level,
                     collectionTitle = current.collection.takeIf { it.isNotBlank() },
                 )
+            }.onFailure { cancellation ->
+                if (cancellation is CancellationException) throw cancellation
             }
             val lesson = result.getOrNull()
             _state.update {

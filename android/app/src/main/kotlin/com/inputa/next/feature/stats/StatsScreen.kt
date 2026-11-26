@@ -20,33 +20,34 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import com.inputa.next.core.design.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.inputa.next.core.data.ChartPoint
-import com.inputa.next.core.data.StatsSnapshot
+import java.util.Locale
+import com.inputa.next.core.design.LocalAppLanguage
 import com.inputa.next.core.design.LqColors
-import com.inputa.next.core.design.LqChip
-import com.inputa.next.core.design.LqErrorState
+import com.inputa.next.core.design.LqDot
 import com.inputa.next.core.design.LqIcons
 import com.inputa.next.core.design.LqLoading
 import com.inputa.next.core.design.LqProgressBar
 import com.inputa.next.core.design.LqRadius
 import com.inputa.next.core.design.LqSectionHeader
 import com.inputa.next.core.design.LqSpace
+import com.inputa.next.core.design.LqType
+import com.inputa.next.core.design.Text
+import com.inputa.next.core.design.translate
 
-/** 统计页：Known Words、本周活动、明细卡片。数字全部来自 profile / progress。 */
+/** 统计页：Known Words、每日目标、本机词库分布。 */
 @Composable
 fun StatsScreen(
     onBack: () -> Unit,
@@ -74,133 +75,146 @@ fun StatsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(LqColors.surface)
                         .clickable(onClick = onBack),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(LqIcons.ArrowLeft, contentDescription = "Back", tint = LqColors.text, modifier = Modifier.size(19.dp))
+                    Icon(
+                        imageVector = LqIcons.ArrowLeft,
+                        contentDescription = LocalAppLanguage.current.translate("Back"),
+                        tint = LqColors.text,
+                        modifier = Modifier.size(19.dp),
+                    )
                 }
                 Spacer(Modifier.width(LqSpace.md))
-                Text(
-                    text = "Stats",
-                    color = LqColors.textStrong,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            Spacer(Modifier.height(LqSpace.lg))
-            KnownWordsHero(stats = stats)
-            Spacer(Modifier.height(LqSpace.lg))
-            DailyGoalCard(goal = state.dailyGoal, learnedToday = state.learnedToday)
-            Spacer(Modifier.height(LqSpace.lg))
-        }
-
-        if (state.loading) {
-            item { LqLoading(label = "Loading your stats…") }
-        }
-
-        if (!state.loading && state.error != null && stats == null) {
-            item { LqErrorState(message = state.error.orEmpty(), onRetry = viewModel::load) }
-        }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(LqSpace.md)) {
-                MetricCard(
-                    icon = LqIcons.BookOpen,
-                    label = "Words Read",
-                    value = formatNumber(stats?.wordsRead),
-                    tint = LqColors.blue,
-                    modifier = Modifier.weight(1f),
-                )
-                MetricCard(
-                    icon = LqIcons.Sparkles,
-                    label = "Inputa",
-                    value = formatNumber(stats?.lingqs),
-                    tint = LqColors.yellow,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(Modifier.height(LqSpace.md))
-            Row(horizontalArrangement = Arrangement.spacedBy(LqSpace.md)) {
-                MetricCard(
-                    icon = LqIcons.Headphones,
-                    label = "Hrs Listened",
-                    value = (stats?.hoursListened)?.let { formatHours(it) } ?: "—",
-                    tint = LqColors.green,
-                    modifier = Modifier.weight(1f),
-                )
-                MetricCard(
-                    icon = LqIcons.Flame,
-                    label = "Day Streak",
-                    value = formatNumber(stats?.streak),
-                    tint = LqColors.orange,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(Modifier.height(LqSpace.xxl))
-        }
-
-        item {
-            LqSectionHeader(title = "This Week")
-            Spacer(Modifier.height(LqSpace.sm))
-            Row(horizontalArrangement = Arrangement.spacedBy(LqSpace.sm)) {
-                listOf("reading" to "Words", "lingqs" to "Inputa", "listening" to "Listening").forEach { (key, label) ->
-                    LqChip(
-                        label = label,
-                        selected = state.metric == key,
-                        onClick = { viewModel.setMetric(key) },
+                Column {
+                    Text(
+                        text = "Stats",
+                        color = LqColors.textStrong,
+                        fontSize = LqType.headline,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Your local learning progress",
+                        color = LqColors.muted,
+                        fontSize = LqType.label,
                     )
                 }
             }
-            Spacer(Modifier.height(LqSpace.md))
-            WeeklyChart(points = stats?.chart.orEmpty())
+            Spacer(Modifier.height(LqSpace.xl))
+        }
+
+        if (state.loading || stats == null) {
+            item { LqLoading(label = "Loading your stats…") }
+        } else {
+            item {
+                KnownWordsHero(
+                    knownWords = stats.knownWords ?: 0,
+                    totalWords = state.totalWords,
+                )
+                Spacer(Modifier.height(LqSpace.lg))
+                DailyGoalCard(goal = state.dailyGoal, learnedToday = state.learnedToday)
+                Spacer(Modifier.height(LqSpace.xxl))
+            }
+
+            item {
+                LqSectionHeader(title = "Word Library")
+                Spacer(Modifier.height(LqSpace.md))
+                WordLibraryCard(
+                    knownWords = stats.knownWords ?: 0,
+                    inputaWords = stats.lingqs ?: 0,
+                    ignoredWords = state.ignoredWords,
+                    totalWords = state.totalWords,
+                )
+                Spacer(Modifier.height(LqSpace.md))
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        imageVector = LqIcons.Info,
+                        contentDescription = null,
+                        tint = LqColors.faint,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(LqSpace.sm))
+                    Text(
+                        text = "Stats are calculated from word statuses saved on this device.",
+                        color = LqColors.faint,
+                        fontSize = LqType.label,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun KnownWordsHero(stats: StatsSnapshot?) {
+private fun KnownWordsHero(knownWords: Int, totalWords: Int) {
+    val progress = if (totalWords <= 0) 0f else knownWords.toFloat() / totalWords
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(LqRadius.card))
-            .background(LqColors.blueStrong)
+            .background(
+                Brush.horizontalGradient(listOf(LqColors.knownStart, LqColors.knownEnd)),
+            )
             .padding(LqSpace.xl),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Known Words",
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    text = formatNumber(stats?.knownWords),
-                    color = Color.White,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.6).sp,
-                )
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Known Words",
+                        color = Color.White.copy(alpha = 0.82f),
+                        fontSize = LqType.caption,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.4.sp,
+                    )
+                    Text(
+                        text = formatNumber(knownWords),
+                        color = Color.White,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.6).sp,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = LqIcons.BookOpen,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(21.dp),
+                    )
+                }
             }
-            Row(
+            Spacer(Modifier.height(LqSpace.lg))
+            Box(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .height(7.dp)
                     .clip(RoundedCornerShape(LqRadius.pill))
-                    .background(Color.White.copy(alpha = 0.18f))
-                    .padding(horizontal = LqSpace.md, vertical = LqSpace.sm),
-                verticalAlignment = Alignment.CenterVertically,
+                    .background(Color.White.copy(alpha = 0.2f)),
             ) {
-                Icon(LqIcons.Flame, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "${formatNumber(stats?.streak)} day streak",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(LqRadius.pill))
+                        .background(Color.White),
                 )
             }
+            Spacer(Modifier.height(LqSpace.sm))
+            Text(
+                text = "${formatNumber(totalWords)} words tracked",
+                color = Color.White.copy(alpha = 0.82f),
+                fontSize = LqType.label,
+            )
         }
     }
 }
@@ -208,139 +222,151 @@ private fun KnownWordsHero(stats: StatsSnapshot?) {
 @Composable
 private fun DailyGoalCard(goal: Int, learnedToday: Int) {
     val progress = if (goal <= 0) 0f else learnedToday.toFloat() / goal
+    val remaining = (goal - learnedToday).coerceAtLeast(0)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(LqRadius.card))
             .background(LqColors.surface)
+            .border(1.dp, LqColors.border, RoundedCornerShape(LqRadius.card))
+            .padding(LqSpace.xl),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Daily Goal",
+                    color = LqColors.textStrong,
+                    fontSize = LqType.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = if (progress >= 1f) "Goal reached today." else "${formatNumber(remaining)} words remaining",
+                    color = LqColors.muted,
+                    fontSize = LqType.label,
+                )
+            }
+            Text(
+                text = "${formatNumber(learnedToday)} / ${formatNumber(goal)}",
+                color = LqColors.text,
+                fontSize = LqType.caption,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Spacer(Modifier.height(LqSpace.md))
+        LqProgressBar(progress = progress, height = 7.dp)
+    }
+}
+
+@Composable
+private fun WordLibraryCard(
+    knownWords: Int,
+    inputaWords: Int,
+    ignoredWords: Int,
+    totalWords: Int,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(LqRadius.card))
+            .background(LqColors.surface)
+            .border(1.dp, LqColors.border, RoundedCornerShape(LqRadius.card))
             .padding(LqSpace.xl),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Daily Goal",
-                color = LqColors.textStrong,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
+                text = "Total tracked",
+                color = LqColors.muted,
+                fontSize = LqType.caption,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "${formatNumber(learnedToday)} / ${formatNumber(goal)}",
-                color = LqColors.muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                text = formatNumber(totalWords),
+                color = LqColors.textStrong,
+                fontSize = LqType.title,
+                fontWeight = FontWeight.Bold,
             )
         }
         Spacer(Modifier.height(LqSpace.md))
-        LqProgressBar(progress = progress, height = 6.dp)
-        Spacer(Modifier.height(LqSpace.sm))
-        Text(
-            text = if (progress >= 1f) {
-                "Goal reached today. Keep the streak going."
-            } else {
-                "Words whose status changed today count toward this goal."
-            },
-            color = LqColors.muted,
-            fontSize = 11.sp,
+        WordDistributionBar(
+            knownWords = knownWords,
+            inputaWords = inputaWords,
+            ignoredWords = ignoredWords,
+            totalWords = totalWords,
         )
+        Spacer(Modifier.height(LqSpace.lg))
+        WordLibraryLegend("Known Words", knownWords, totalWords, LqColors.green)
+        Spacer(Modifier.height(LqSpace.md))
+        WordLibraryLegend("Inputa", inputaWords, totalWords, LqColors.yellow)
+        Spacer(Modifier.height(LqSpace.md))
+        WordLibraryLegend("Ignored", ignoredWords, totalWords, LqColors.faint)
     }
 }
 
 @Composable
-private fun MetricCard(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    tint: Color,
-    modifier: Modifier = Modifier,
+private fun WordDistributionBar(
+    knownWords: Int,
+    inputaWords: Int,
+    ignoredWords: Int,
+    totalWords: Int,
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(LqRadius.card))
-            .background(LqColors.surface)
-            .border(1.dp, LqColors.border, RoundedCornerShape(LqRadius.card))
-            .padding(LqSpace.lg),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(tint.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-        }
-        Spacer(Modifier.height(LqSpace.md))
-        Text(
-            text = value,
-            color = LqColors.textStrong,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(text = label, color = LqColors.muted, fontSize = 11.sp)
-    }
-}
-
-@Composable
-private fun WeeklyChart(points: List<ChartPoint>) {
-    if (points.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(LqRadius.card))
-                .background(LqColors.surface)
-                .padding(LqSpace.xl),
-        ) {
-            Text(
-                text = "No activity data was returned for this period.",
-                color = LqColors.muted,
-                fontSize = 13.sp,
-            )
-        }
-        return
-    }
-    val max = points.maxOfOrNull { it.value }?.coerceAtLeast(1f) ?: 1f
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(LqRadius.card))
-            .background(LqColors.surface)
-            .padding(horizontal = LqSpace.md, vertical = LqSpace.lg),
-        horizontalArrangement = Arrangement.spacedBy(LqSpace.sm),
-        verticalAlignment = Alignment.Bottom,
+            .height(10.dp)
+            .clip(RoundedCornerShape(LqRadius.pill))
+            .background(LqColors.surfaceHigh),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        points.forEach { point ->
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+        if (totalWords <= 0) return@Row
+        listOf(
+            knownWords to LqColors.green,
+            inputaWords to LqColors.yellow,
+            ignoredWords to LqColors.faint,
+        ).forEach { (count, color) ->
+            if (count > 0) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height((8f + 72f * (point.value / max)).dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(LqColors.blue),
-                )
-                Spacer(Modifier.height(LqSpace.xs))
-                Text(
-                    text = point.label,
-                    color = LqColors.faint,
-                    fontSize = 9.sp,
-                    maxLines = 1,
+                        .weight(count.toFloat())
+                        .height(10.dp)
+                        .background(color),
                 )
             }
         }
     }
 }
 
-private fun formatNumber(value: Int?): String {
-    val number = value ?: return "—"
-    return when {
-        number >= 1_000_000 -> String.format("%.1fM", number / 1_000_000.0)
-        number >= 10_000 -> String.format("%.1fK", number / 1_000.0)
-        number >= 1_000 -> String.format("%,d", number)
-        else -> number.toString()
+@Composable
+private fun WordLibraryLegend(label: String, count: Int, totalWords: Int, color: Color) {
+    val percent = if (totalWords <= 0) 0 else count * 100 / totalWords
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        LqDot(color = color, size = 8.dp)
+        Spacer(Modifier.width(LqSpace.sm))
+        Text(
+            text = label,
+            color = LqColors.text,
+            fontSize = LqType.body,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = formatNumber(count),
+            color = LqColors.textStrong,
+            fontSize = LqType.body,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.width(LqSpace.md))
+        Text(
+            text = "$percent%",
+            color = LqColors.muted,
+            fontSize = LqType.caption,
+        )
     }
 }
 
-private fun formatHours(value: Double): String =
-    if (value >= 100) value.toInt().toString() else String.format("%.1f", value)
+private fun formatNumber(value: Int): String {
+    return when {
+        value >= 1_000_000 -> String.format(Locale.US, "%.1fM", value / 1_000_000.0)
+        value >= 10_000 -> String.format(Locale.US, "%.1fK", value / 1_000.0)
+        value >= 1_000 -> String.format(Locale.US, "%,d", value)
+        else -> value.toString()
+    }
+}

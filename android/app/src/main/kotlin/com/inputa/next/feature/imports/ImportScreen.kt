@@ -58,7 +58,10 @@ fun ImportScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.imported) {
-        state.imported?.let(onImported)
+        state.imported?.let {
+            onImported(it)
+            viewModel.consumeImported()
+        }
     }
 
     Column(

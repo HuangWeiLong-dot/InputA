@@ -21,12 +21,12 @@ class StatsViewModel @Inject constructor(
 ) : ViewModel() {
 
     data class State(
-        val loading: Boolean = false,
-        val error: String? = null,
+        val loading: Boolean = true,
         val stats: StatsSnapshot? = null,
-        val metric: String = "reading",
         val dailyGoal: Int = 1000,
         val learnedToday: Int = 0,
+        val ignoredWords: Int = 0,
+        val totalWords: Int = 0,
     )
 
     private val _state = MutableStateFlow(State())
@@ -34,20 +34,14 @@ class StatsViewModel @Inject constructor(
 
     private val language: String get() = session.language()
 
-    fun setMetric(metric: String) {
-        if (_state.value.metric == metric) return
-        _state.update { it.copy(metric = metric) }
-        load()
-    }
-
     fun load() {
         val entries = localWords.load(language).values
         val known = entries.count { it == 0 }
         val inputa = entries.count { it in 1..4 }
+        val ignored = entries.count { it == -1 }
         _state.update {
             it.copy(
                 loading = false,
-                error = null,
                 stats = StatsSnapshot(
                     knownWords = known,
                     wordsRead = known + inputa,
@@ -59,6 +53,8 @@ class StatsViewModel @Inject constructor(
                 ),
                 dailyGoal = settings.dailyGoal.value,
                 learnedToday = localWords.todayLearned(language),
+                ignoredWords = ignored,
+                totalWords = known + inputa + ignored,
             )
         }
     }
