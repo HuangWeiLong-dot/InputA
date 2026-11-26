@@ -1,5 +1,5 @@
 name: Feature request
-description: 提议 InputA 的新功能或行为改进
+description: Suggest a new feature or behavior improvement for InputA
 title: "[Feature]: "
 labels:
   - enhancement
@@ -7,50 +7,50 @@ body:
   - type: markdown
     attributes:
       value: |
-        提交前请先搜索现有 Issue 和 Pull Request，避免重复提议。
+        Before submitting, search existing issues and pull requests to avoid duplicate proposals.
 
-        > 请勿附上 LingQ token、密码、真实账号凭据、AI API key、keystore.properties、keystore 或签名 APK/AAB。
+        > Do not attach LingQ tokens, passwords, real account credentials, AI API keys, keystore.properties, keystore files, or signed APK/AAB files.
   - type: textarea
     id: problem
     attributes:
       label: Problem or use case
-      description: 说明当前遇到的问题、使用场景，以及该功能会带来什么价值。
-      placeholder: 我在阅读 ... 时，需要 ...
+      description: Describe the current problem, the use case, and the value this feature would provide.
+      placeholder: While reading ..., I need ...
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed solution
-      description: 描述期望的界面、交互或行为。大规模功能或重构请先创建 Issue 或 Discussion 与维护者确认方向。
+      description: Describe the desired UI, interaction, or behavior. For large features or refactors, open an issue or discussion first to confirm direction with the maintainer.
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: 说明考虑过的其他方案、变通方法，以及为什么当前方案更合适；没有可留空。
+      description: Describe other approaches or workarounds you considered and why this proposal is better. Leave blank if none.
     validations:
       required: false
   - type: textarea
     id: scope
     attributes:
       label: Affected areas
-      description: 列出可能涉及的模块或页面，例如 reader、explore、vocabulary、settings、data、design、android。
+      description: List affected modules or screens, such as reader, explore, vocabulary, settings, data, design, or android.
     validations:
       required: false
   - type: textarea
     id: acceptance
     attributes:
       label: Acceptance criteria
-      description: 用可验证的条件描述完成标准；例如“在英文和中文界面下均可 ...”。
+      description: Define completion using verifiable conditions, for example, "Works in both the English and Chinese UI."
     validations:
       required: false
   - type: dropdown
     id: sensitive-scope
     attributes:
       label: Sensitive scope
-      description: 是否涉及架构、持久化、认证、网络服务商、发布版本或公开行为？这些变更需要先讨论。
+      description: Does this change affect architecture, persistence, authentication, network providers, release versioning, or public behavior? These changes require prior discussion.
       options:
         - No
         - Yes
@@ -62,7 +62,7 @@ body:
     attributes:
       label: Confirmation
       options:
-        - label: 我已搜索现有 Issue 和 Pull Request，没有发现相同提议。
+        - label: I searched existing issues and pull requests and did not find the same proposal.
           required: true
-        - label: 我了解该提议需要维护者确认范围和优先级，提交 Issue 不代表承诺实现。
+        - label: I understand the maintainer must confirm scope and priority, and submitting an issue does not guarantee implementation.
           required: true
