@@ -98,6 +98,12 @@ private val ZH: Map<String, String> = mapOf(
     "Words Read" to "已读词数",
     "Hrs Listened" to "收听时长",
     "Daily Goal" to "每日目标",
+    "Loading your stats…" to "正在加载统计…",
+    "Your local learning progress" to "你的本机学习进度",
+    "Word Library" to "词库统计",
+    "Total tracked" to "已记录词汇",
+    "Goal reached today." to "今日目标已完成。",
+    "Stats are calculated from word statuses saved on this device." to "统计根据保存在此设备上的词汇状态计算。",
 
     // 课程详情
     "Bookmark" to "收藏",
@@ -379,6 +385,8 @@ private val ZH_PATTERNS: List<Pair<Regex, String>> = listOf(
     Regex("^([\\d,]+) new words$") to "\$1 个生词",
     Regex("^([\\d,]+) new$") to "\$1 个生词",
     Regex("^([\\d,]+) words$") to "\$1 词",
+    Regex("^([\\d,]+(?:\\.\\d+)?[KM]?) words tracked$") to "已记录 \$1 个词",
+    Regex("^([\\d,]+(?:\\.\\d+)?[KM]?) words remaining$") to "还剩 \$1 个词",
     Regex("^([\\d,]+) lessons$") to "\$1 节课",
     Regex("^Lessons \\((\\d+)\\)$") to "课程（\$1）",
     Regex("^([\\d,]+) cards$") to "\$1 张卡片",
