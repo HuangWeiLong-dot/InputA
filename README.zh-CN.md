@@ -113,13 +113,13 @@ android/
 ## 已知限制
 
 - LingQ 内部接口没有公开文档，字段和额度可能变化并导致功能失效。
-- 目前没有自动化测试，也没有 CI。
+- 目前没有自动化测试；CI 会为 pull request 和推送至 `main` 的提交构建 debug APK。
 - 界面只提供深色主题。
 - AI 功能需要自行填写 OpenAI 兼容的 Base URL、API Key 和模型名。
 
 ## 贡献
 
-提交与发布规范由 review 把关，完整规则见 [CLAUDE.md](CLAUDE.md)。
+提交、审阅、开发与发布规范由 review 把关，完整规则见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 - 提交信息与 PR 标题遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：`type(scope): 摘要`，摘要使用小写祈使句，不加句号。
 - 常用 type：`feat`、`fix`、`refactor`、`docs`、`test`、`perf`、`build`、`ci`、`chore`。

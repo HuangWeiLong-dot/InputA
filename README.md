@@ -113,13 +113,13 @@ android/
 ## Limitations
 
 - LingQ's internal API is undocumented; fields and quotas can change and break features.
-- There are no automated tests or CI at the moment.
+- There are no automated tests; CI builds the debug APK for pull requests and pushes to `main`.
 - The UI is dark-theme only.
 - AI features require your own OpenAI-compatible base URL, API key, and model.
 
 ## Contributing
 
-Commit and release rules are enforced by review only; the full version lives in [CLAUDE.md](CLAUDE.md).
+Commit, review, development, and release rules are enforced by review only; the full version lives in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, with a lowercase imperative summary and no trailing period.
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
