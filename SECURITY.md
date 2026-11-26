@@ -4,7 +4,7 @@
 
 Security fixes target `main` and, when warranted, the latest tagged release. Older releases are not guaranteed to receive fixes.
 
-InputA is an Android client with no project-owned backend. This policy covers the application source, build configuration, GitHub workflows, and release artifacts published by this repository.
+InputA includes Android and Web clients. Android has no project-owned backend; Web adds only a stateless same-origin forwarding proxy for LingQ's non-CORS API. This policy covers the application source, proxy, build configuration, GitHub workflows, and release artifacts published by this repository.
 
 ## Reporting a Vulnerability
 
@@ -44,7 +44,7 @@ Please allow reasonable time for a fix before public disclosure. The maintainer 
 
 In scope:
 
-- Authentication, session storage, and credential handling in the Android app.
+- Authentication, session storage, proxy routing, and credential handling in Android and Web.
 - Leakage of LingQ tokens, passwords, AI API keys, or other user secrets.
 - Insecure network behavior, including authorization headers or cookies sent to unintended hosts.
 - Local data exposure, unsafe persistence, or destructive behavior affecting user data.
@@ -62,11 +62,12 @@ Only test systems and accounts you own or are explicitly authorized to assess. D
 
 Contributors must preserve these repository requirements:
 
-- LingQ tokens and AI credentials remain encrypted and are never logged.
+- Android keeps LingQ tokens and AI credentials encrypted; Web keeps the LingQ Token in memory only. Neither platform logs secrets.
 - Passwords are used only to request a token and are not persisted.
-- Authorization headers and cookies are scoped to their intended hosts.
+- Authorization headers and cookies are scoped to their intended hosts. The Web proxy forwards only validated headers to the fixed LingQ origin, strips cookies, and does not follow redirects.
+- The Web proxy remains a strict route/method/query allowlist. Arbitrary upstream targets, database persistence, and LingQ write routes are not permitted.
 - Local word state is not written back to LingQ.
-- `keystore.properties`, keystores, `local.properties`, signed distribution artifacts, and real credentials are never committed or attached to issues.
-- Pull request CI uses debug builds and read-only repository permissions; release signing configuration remains local-only.
+- `keystore.properties`, keystores, `local.properties`, signed distribution artifacts, `node_modules`, Web build output, and real credentials are never committed or attached to issues.
+- Pull request CI uses debug builds or test fixtures and read-only repository permissions; release signing configuration remains local-only.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md#7-security-and-secrets) for the full contributor security requirements.

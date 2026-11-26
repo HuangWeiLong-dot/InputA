@@ -1,6 +1,6 @@
 # Contributing to InputA
 
-InputA is an Android-only project. All shipped application code lives under `android/`, which is an independent Gradle project. This document defines contribution and development requirements; architecture details and implementation constraints are recorded in [AGENTS.md](AGENTS.md).
+InputA contains an Android app under `android/` and a React web client under `web/`. This document defines contribution and development requirements; architecture details and implementation constraints are recorded in [AGENTS.md](AGENTS.md).
 
 By submitting a pull request, you agree that your contribution is provided under the repository's [MIT License](LICENSE).
 
@@ -104,6 +104,7 @@ Allowed types are:
 Scopes identify code areas, never versions:
 
 - `android`
+- `web`
 - `data`
 - `reader`
 - `explore`
@@ -153,7 +154,7 @@ Keep code, paths, commands, and commit examples verbatim. Merge gates belong in 
 
 ## 4. Versioning and releases
 
-The application version is defined by `versionName` and `versionCode` in `android/app/build.gradle.kts`.
+The Android application version is defined by `versionName` and `versionCode` in `android/app/build.gradle.kts`. Web currently has no independent release version.
 
 - During `0.x`, follow SemVer.
 - New features or user-visible behavior changes require a minor bump.
@@ -171,9 +172,10 @@ Contributors should not bump the version, create a tag, or close a milestone unl
 
 ### Requirements
 
-- JDK 17.
+- JDK 17 for Android.
 - Android SDK with API 37.
-- Minimum supported device or emulator: Android 8.0 / API 26.
+- Minimum supported Android device or emulator: Android 8.0 / API 26.
+- Node.js 24 and npm for Web.
 - The Gradle wrapper checked into the repository.
 
 Run Gradle commands from `android/`. On Windows, use `gradlew.bat` from Command Prompt or PowerShell, or `./gradlew` from Git Bash.
@@ -196,6 +198,24 @@ Notes:
 - `assembleRelease` requires a local release signing configuration and is not expected to work in pull request CI.
 - Do not commit `android/local.properties`.
 
+### Web commands
+
+Run from `web/`:
+
+```bash
+npm ci
+npm run dev
+npm run typecheck
+npm run lint
+npm test
+npm run test:server
+npm run test:e2e
+npm run build
+npm start
+```
+
+Install the Playwright browser once with `npx playwright install chromium`. `PLAYWRIGHT_CHANNEL` can select an installed browser channel. `npm start` serves `web/dist` and the same-origin proxy; it requires a prior production build.
+
 ### Debug and release identity
 
 Debug and release builds are intentionally installable side by side:
@@ -216,11 +236,14 @@ The `Android debug build` workflow runs for:
 
 CI uses JDK 17, installs Android SDK 37, and runs `:app:assembleDebug`. It uploads an artifact named `app-debug`, retained for 14 days. The artifact belongs to the workflow run that produced it; it does not update automatically after another run, rebase, or merge.
 
+The `Web verification` workflow runs typecheck, lint, Vitest, Node proxy tests, a production build, and Playwright with Chromium. It uploads a `web-dist` artifact retained for 14 days.
+
 ## 6. Code and architecture requirements
 
 ### Project structure
 
-- The shipped app is a single `:app` module.
+- The Android app is a single `:app` module.
+- The Web app lives in `web/` and shares no runtime code or storage with Android.
 - `android/PLAN.md` is an original design brief, not the current architecture specification.
 - Trust current source code and [AGENTS.md](AGENTS.md) over `PLAN.md`.
 
@@ -244,9 +267,18 @@ CI uses JDK 17, installs Android SDK 37, and runs `:app:assembleDebug`. It uploa
 - Local word state is the source of truth and is deliberately not written back to LingQ.
 - Do not add LingQ card or known-word synchronization as a shortcut.
 - Preserve lenient parsing for undocumented LingQ responses.
-- Do not introduce a self-hosted backend or a configurable LingQ origin.
-- Keep authentication tokens and AI credentials encrypted and never log them.
+- Do not introduce a business backend or a configurable LingQ origin. The approved Web transport is a minimal stateless same-origin proxy with a strict allowlist.
+- Android keeps authentication tokens and AI credentials encrypted. Web keeps the LingQ Token in memory only and has no AI credentials. Never log either platform's secrets.
 - Scope authorization headers and cookies to the intended hosts.
+
+### React and TypeScript
+
+- Use function components and hooks; keep remote cache state in React Query and browser-local records in IndexedDB/localStorage.
+- Preserve lenient LingQ parsing in `web/src/api/parsers.ts`; add regression tests for response variants.
+- Keep user-visible strings as English keys with Chinese translations in `web/src/i18n/`.
+- Use accessible native controls, keyboard focus management, and responsive layouts.
+- Keep the LingQ Token in memory only. Never add it to storage, URLs, logs, analytics, or error reports.
+- Do not expand the proxy beyond the reviewed route/method/query allowlist, make its origin configurable, or add database/business behavior.
 
 ### Coroutines and state safety
 
@@ -282,13 +314,13 @@ Before requesting review, verify the applicable items:
 - [ ] The branch was created from current `main`.
 - [ ] The branch name, commit messages, and pull request title follow the conventions.
 - [ ] The pull request contains one coherent change.
-- [ ] No secrets, keystores, generated APKs, or local configuration are included.
-- [ ] `./gradlew :app:assembleDebug` succeeds.
-- [ ] `./gradlew :app:lint` succeeds or known unrelated warnings are identified.
-- [ ] The debug APK was installed or exercised on a device/emulator when behavior changed.
+- [ ] No secrets, keystores, generated APKs, local configuration, `node_modules`, or Web build/test output are included.
+- [ ] For Android changes, `./gradlew :app:assembleDebug` succeeds and behavior was exercised on a device/emulator when applicable.
+- [ ] For Web changes, `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:server`, `npm run test:e2e`, and `npm run build` pass.
+- [ ] Web loading, empty, error, stale-request, keyboard, and mobile-layout states were checked where relevant.
+- [ ] The LingQ Token was not persisted or exposed, and the proxy allowlist was not broadened without review.
 - [ ] Visible UI changes were checked in both English and Chinese.
-- [ ] Loading, empty, error, cancellation, and rapid-input states were checked where relevant.
-- [ ] Debug and release package identity was not broken.
+- [ ] Android debug/release package identity was not broken when Android files changed.
 - [ ] Documentation and both READMEs were updated when public behavior or release rules changed.
 - [ ] Version metadata was changed only when release preparation was requested.
 - [ ] CI passes and all review findings are addressed or explicitly accepted by the maintainer.
