@@ -44,7 +44,7 @@ Rules:
 - Use a lowercase ASCII kebab-case summary.
 - Do not include version numbers, usernames, or issue numbers.
 - Do not use release names such as `v0.5.0` as feature branches.
-- Delete the branch after merge unless the maintainer asks to keep it.
+- Keep the local branch after merge by default; delete local branches and worktrees only when the maintainer explicitly requests cleanup.
 
 ### While the pull request is open
 

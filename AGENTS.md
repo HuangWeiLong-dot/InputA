@@ -46,7 +46,7 @@ History follows Conventional Commits. Nothing enforces this automatically — th
 
 - Format: `<type>(<scope>): <summary>`, for example `feat(reader): translate long-pressed sentences`.
 - Types: `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`.
-- Branch names use `<type>/<short-kebab-summary>` with the same types and a lowercase ASCII kebab-case summary, for example `feat/sentence-translation`, `fix/explore-level-filter`, or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from current `main`, keep branches short-lived, and delete them after merge; release versions belong in release commits, tags, and milestones, not feature branch names.
+- Branch names use `<type>/<short-kebab-summary>` with the same types and a lowercase ASCII kebab-case summary, for example `feat/sentence-translation`, `fix/explore-level-filter`, or `ci/android-debug-build`. Do not put versions, usernames, or issue numbers in branch names. Branch from current `origin/main`, keep active development short-lived, and retain merged local branches by default; delete local branches only when the maintainer explicitly requests cleanup. Release versions belong in release commits, tags, and milestones, not feature branch names.
 - Scope is a code area, not a version: `android`, `web`, `data`, `reader`, `explore`, `review`, `vocabulary`, `settings`, `design`. Omit it for repo-wide changes. Never write `feat(0.4.1): …`; release bumps are `chore(release): bump to 0.4.1 (versionCode 5)`, and the version belongs in the body or the tag.
 - Summary: lowercase, imperative, no trailing period, roughly 72 characters or less. Describe one user-visible change, not a list of unrelated items.
 - One logical change per commit. Keep features, fixes, docs and build-environment tweaks separate; a `gradle.properties` workaround for Chinese paths gets its own commit instead of shipping with a feature.
@@ -85,7 +85,7 @@ Rules:
 - Fetch the latest `main` before creating the branch/worktree pair and base it on `origin/main`.
 - Run Gradle, tests, documentation checks, commits, and branch-local review fixes inside the worktree. Check `git status` there before staging.
 - Do not rename or delete a PR head branch while its worktree is active without coordinating with the maintainer.
-- After a branch is merged or abandoned, verify the worktree is clean, remove it with `git worktree remove <path>`, then run `git worktree prune`.
+- After merge, keep the local worktree and branch by default. Remove them only when the maintainer explicitly requests local cleanup, and verify the worktree is clean before removal.
 - Existing nonstandard worktrees should be migrated with `git worktree move <old-path> <new-path>` when their branch is idle and has no uncommitted changes.
 
 Example setup:
@@ -97,16 +97,18 @@ git worktree add ../InputA-worktree-feat-example -b feat/example origin/main
 # Work and commit inside ../InputA-worktree-feat-example.
 ```
 
-Example cleanup after merge or abandonment:
+Optional local cleanup after an explicit maintainer request:
 
 ```bash
 git worktree remove ../InputA-worktree-feat-example
 git worktree prune
+# Verify the squashed content before deleting the local branch.
+git branch -D feat/example
 ```
 
 ## Mandatory change workflow
 
-Every repository change must move through the same branch-to-merge lifecycle. Do not commit directly to `main`, and do not treat a local commit as delivered until its PR has passed the required checks and the completed branch has been cleaned up.
+Every repository change must move through the same branch-to-merge lifecycle. Do not commit directly to `main`, and do not treat a local commit as delivered until its PR has passed the required checks and the remote branch has been cleaned up. Local worktrees and branches are retained by default.
 
 1. Synchronize with the remote:
    - Fetch the latest `origin/main` from the main repository checkout.
@@ -117,12 +119,11 @@ Every repository change must move through the same branch-to-merge lifecycle. Do
 5. Create a PR targeting `main`, complete the English PR template, and perform the [PR follow-up checklist](#pr-follow-up-checklist) for labels, milestone, and Projects.
 6. Wait for CI to pass. If follow-up commits are made, push them and wait for the new check result before merging.
 7. Squash-merge the PR after CI and all merge gates are satisfied.
-8. After merge, verify the PR state is `MERGED` and the merged commit is visible on `origin/main`. Remove branch artifacts in this order:
-   - Confirm the worktree is clean, remove it with `git worktree remove <path>`, then run `git worktree prune`.
+8. After merge, verify the PR state is `MERGED` and the merged commit is visible on `origin/main`. Clean up remote artifacts:
    - Delete the remote branch with `git push origin --delete <branch>`.
-   - Fetch with `git fetch origin --prune`, then delete the local branch. Because the repository uses squash merges, verify the merged content before using `git branch -D <branch>` when `-d` cannot recognize the squashed ancestry.
-   - Confirm `git branch -a --list '*<branch-name>*'` and `git worktree list` no longer show the completed branch or worktree.
-9. Return to the main checkout only to fetch or synchronize `origin/main`. Do not leave completed feature branches, stale remote-tracking branches, or temporary worktrees behind.
+   - Fetch with `git fetch origin --prune` and confirm the remote branch and stale remote-tracking refs are gone.
+   - Keep the local worktree and branch by default. Only when the maintainer explicitly requests local cleanup, verify the worktree is clean, remove it with `git worktree remove <path>`, run `git worktree prune`, and delete the local branch. Because the repository uses squash merges, verify the merged content before using `git branch -D <branch>` when `-d` cannot recognize the squashed ancestry.
+9. Return to the main checkout only to fetch or synchronize `origin/main`. Do not leave stale remote-tracking branches behind; retained local worktrees and branches must stay clean and identifiable.
 
 Canonical lifecycle:
 
@@ -138,11 +139,9 @@ gh pr checks <number> --watch
 gh pr merge <number> --squash --match-head-commit <sha>
 gh pr view <number> --json state,mergedAt,mergeCommit
 git -C ../InputA-worktree-feat-example status --short
-git worktree remove ../InputA-worktree-feat-example
-git worktree prune
 git push origin --delete feat/example
 git fetch origin --prune
-git branch -D feat/example
+# Keep the local worktree and branch unless cleanup is explicitly requested.
 ```
 
 ## PR follow-up checklist
@@ -177,7 +176,7 @@ Multiple agents may develop features in parallel only when each agent has its ow
 - Before merge, fetch and synchronize with current `main`; resolve conflicts in the feature worktree rather than rewriting shared history silently.
 - Do not force-push a reviewed branch without notifying the reviewer. When a rewrite is agreed, use `git push --force-with-lease`.
 - Do not commit or push unrelated work from another agent. Check `git status` before staging.
-- Remove temporary worktrees after their branches are merged or abandoned.
+- Retain local worktrees and branches after merge by default; remove them only after an explicit maintainer request.
 
 Example worktree setup:
 
