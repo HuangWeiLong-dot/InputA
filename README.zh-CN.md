@@ -139,11 +139,11 @@ web/
 
 - 提交信息与 PR 标题遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：`type(scope): 摘要`，摘要使用小写祈使句，不加句号。
 - 常用 type：`feat`、`fix`、`refactor`、`docs`、`test`、`perf`、`build`、`ci`、`chore`。
-- 分支名使用 `type/短横线摘要`，例如 `feat/sentence-translation`、`ci/android-debug-build`；不要放版本号、用户名或 issue 编号。从最新的 `origin/main` 创建短生命周期分支，合并后删除。
-- 每次代码或文档修改都必须使用与分支配套的 worktree，命名为 `<repository>-worktree-<type>-<short-kebab-summary>`。开发与提交都在 worktree 中进行；主 checkout 仅用于同步、集成审阅和管理操作。详见 [Local development worktrees](AGENTS.md#local-development-worktrees)。
+- 分支名使用 `type/短横线摘要`，例如 `feat/sentence-translation`、`ci/android-debug-build`；不要放版本号、用户名或 issue 编号。从最新的 `origin/main` 创建分支，保持开发周期短，合并后默认保留本地分支。
+- 每次代码或文档修改都必须使用与分支配套的 worktree，命名为 `<repository>-worktree-<type>-<short-kebab-summary>`。开发与提交都在 worktree 中进行；主 checkout 仅用于同步、集成审阅和管理操作。合并后默认保留本地 worktree，只有明确要求时才清理。详见 [Local development worktrees](AGENTS.md#local-development-worktrees)。
 - scope 写代码区段（`android`、`web`、`data`、`reader`、`explore`、`review`、`vocabulary`、`settings`、`design`），不要写版本号；发版用 `chore(release): bump to X.Y.Z (versionCode N)`。
 - 一个提交只做一件事，不要把功能、修复、文档和构建环境调整混在一起。
-- 完成规定的变更流程：同步、建分支、创建 worktree、验证、提交、推送、创建 PR、等待 CI、squash 合并，并清理已合并的 worktree 与分支。禁止直接向 `main` 提交。详见 [Mandatory change workflow](AGENTS.md#mandatory-change-workflow)。
+- 完成规定的变更流程：同步、建分支、创建 worktree、验证、提交、推送、创建 PR、等待 CI、squash 合并，并删除远程分支。除非明确要求清理，否则保留本地 worktree 和分支。禁止直接向 `main` 提交。详见 [Mandatory change workflow](AGENTS.md#mandatory-change-workflow)。
 - 仓库使用 squash 合并，PR 标题会成为 `main` 上的提交标题，因此必须符合同样的格式。
 - 创建 PR 后，填写英文模板，并设置语义标签、`vX.Y.Z` 发布 milestone 和 `Languages Learning` 项目字段；范围发生变化后要重新核对。详见 [PR follow-up checklist](AGENTS.md#pr-follow-up-checklist)。
 - 并行代理必须使用各自独立的分支与 worktree，并分配不重叠的文件；每个代理只验证和记录自己的结果。
