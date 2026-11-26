@@ -16,7 +16,9 @@ import com.inputa.next.core.data.local.SettingsStore
 import com.inputa.next.core.data.normalizeLanguage
 import com.inputa.next.core.data.sortedForDisplay
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +76,7 @@ class HomeViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
+    private var loadJob: Job? = null
 
     val lessonSort = settings.lessonSort
 
@@ -94,104 +97,153 @@ class HomeViewModel @Inject constructor(
     }
 
     fun load(refresh: Boolean = false) {
-        viewModelScope.launch {
-            _state.update {
-                it.copy(
-                    loading = !refresh,
-                    refreshing = refresh,
-                    error = null,
-                )
-            }
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             val language = normalizeLanguage(session.storedLanguage())
-            val words = localWords.load(language)
-            val known = words.values.count { it == 0 }
-            val inputa = words.values.count { it in 1..4 }
-            val ignored = words.values.count { it == -1 }
-
-            val storedLevel = session.storedLanguageLevel(language)
-            val result = coroutineScope {
-                val continueDeferred = async { runCatching { api.continueStudying(language) } }
-                val languagesDeferred = async {
-                    // 语言等级只是装饰信息，接口慢不能拖住首页课程。
-                    runCatching { withTimeoutOrNull(4_000) { api.learningLanguages() } }
-                        .getOrNull()
-                        .orEmpty()
-                }
-                val continueResult = continueDeferred.await()
-                val remote = languagesDeferred.await()
-                val apiLevel = remote.firstOrNull { it.code == language }?.level
-                val effectiveLevel = if (storedLevel == null) {
-                    apiLevel
-                } else {
-                    storedLevel.takeIf { it in 1..6 }
-                }
-                val pickedResult = runCatching { api.pickedForYou(language, effectiveLevel) }
-                Triple(continueResult, pickedResult, remote)
-            }
-            val remoteLanguages = result.third
-            val apiLevel = remoteLanguages.firstOrNull { it.code == language }?.level
-            val activeLevel = if (storedLevel == null) apiLevel else storedLevel.takeIf { it in 1..6 }
-            val sort = settings.lessonSort.value
-            val continueLessons = result.first.getOrDefault(emptyList())
-                .map { it.withLocalCounts(language, words) }
-            val continueIds = continueLessons.map { it.id }.toSet()
-            val picked = result.second.getOrDefault(emptyList())
-                .filterNot { it.id in continueIds }
-                .map { it.withLocalCounts(language, words) }
-                .sortedForDisplay(sort)
-
-            val languages = LanguageNames.map { (code, name) ->
-                val entries = if (code == language) words.values else localWords.load(code).values
-                LearningLanguage(
-                    code = code,
-                    name = name,
-                    knownWords = entries.count { it == 0 },
-                    lingqCount = entries.count { it in 1..4 },
-                    wordsRead = null,
-                    level = remoteLanguages.firstOrNull { it.code == code }?.level,
-                    isActive = code == language,
+            val previousState = _state.value
+            val languageChanged = previousState.languageCode != language
+            _state.update {
+                it.copy(
+                    loading = languageChanged || !refresh,
+                    refreshing = refresh && !languageChanged,
+                    error = null,
+                    languagesLoading = it.languages.isEmpty(),
+                    continueLessons = if (languageChanged) emptyList() else it.continueLessons,
+                    picked = if (languageChanged) emptyList() else it.picked,
+                    pickedSections = if (languageChanged) emptyList() else it.pickedSections,
                 )
             }
 
-            val error = (result.first.exceptionOrNull() ?: result.second.exceptionOrNull())
-                ?.message
-                ?.takeIf { continueLessons.isEmpty() && picked.isEmpty() }
-
-            _state.update {
-                it.copy(
-                    loading = false,
-                    refreshing = false,
-                    error = error,
+            val (local, records) = withContext(Dispatchers.IO) {
+                val words = localWords.load(language)
+                State(
                     username = session.displayUsername() ?: "Inputa",
                     avatarPath = session.avatarPath(),
                     languageCode = language,
                     languageName = LanguageNames[language] ?: language.uppercase(),
-                    languageLevel = activeLevel,
-                    knownCount = known,
-                    inputaCount = inputa,
-                    ignoredCount = ignored,
-                    languages = languages,
-                    continueLessons = continueLessons,
-                    picked = picked,
-                    pickedSections = picked.groupByLevel(activeLevel),
+                    knownCount = words.values.count { it == 0 },
+                    inputaCount = words.values.count { it in 1..4 },
+                    ignoredCount = words.values.count { it == -1 },
                     lastLesson = lastLessonStore.load(language),
                     savedLessons = bookmarks.list(language),
+                ) to words
+            }
+            val storedLevel = session.storedLanguageLevel(language)
+            val selectedLevel = storedLevel?.takeIf { it in 1..6 }
+            val previousLevel = previousState.languageLevel.takeIf { previousState.languageCode == language }
+            _state.update { state ->
+                state.copy(
+                    username = local.username,
+                    avatarPath = local.avatarPath,
+                    languageCode = language,
+                    languageName = local.languageName,
+                    languageLevel = if (storedLevel == null) previousLevel else selectedLevel,
+                    knownCount = local.knownCount,
+                    inputaCount = local.inputaCount,
+                    ignoredCount = local.ignoredCount,
+                    lastLesson = local.lastLesson,
+                    savedLessons = local.savedLessons,
                 )
+            }
+
+            coroutineScope {
+                val continueDeferred = async { request { api.continueStudying(language) } }
+                val languagesDeferred = async {
+                    // 语言等级只用于展示和首次推荐筛选，慢接口不能阻塞继续学习列表。
+                    request { withTimeoutOrNull(4_000) { api.learningLanguages() } }
+                        .getOrNull()
+                        .orEmpty()
+                }
+                val languageListDeferred = async {
+                    val remote = languagesDeferred.await()
+                    withContext(Dispatchers.IO) {
+                        LanguageNames.map { (code, name) ->
+                            val entries = if (code == language) records.values else localWords.load(code).values
+                            LearningLanguage(
+                                code = code,
+                                name = name,
+                                knownWords = entries.count { it == 0 },
+                                lingqCount = entries.count { it in 1..4 },
+                                wordsRead = null,
+                                level = remote.firstOrNull { it.code == code }?.level,
+                                isActive = code == language,
+                            )
+                        }
+                    }
+                }
+                val pickedDeferred = async {
+                    val level = if (storedLevel != null) {
+                        selectedLevel
+                    } else {
+                        languagesDeferred.await().firstOrNull { it.code == language }?.level
+                    }
+                    request { api.pickedForYou(language, level) }
+                }
+
+                val continueResult = continueDeferred.await()
+                val continueLessons = withContext(Dispatchers.Default) {
+                    continueResult.getOrDefault(emptyList()).map { it.withLocalCounts(language, records) }
+                }
+                _state.update { state ->
+                    if (state.languageCode != language) {
+                        state
+                    } else {
+                        state.copy(
+                            continueLessons = continueLessons,
+                            loading = continueLessons.isEmpty() && state.picked.isEmpty(),
+                        )
+                    }
+                }
+
+                val pickedResult = pickedDeferred.await()
+                val activeLevel = if (storedLevel != null) {
+                    selectedLevel
+                } else {
+                    languagesDeferred.await().firstOrNull { it.code == language }?.level
+                }
+                val continueIds = continueLessons.mapTo(mutableSetOf()) { it.id }
+                val sort = settings.lessonSort.value
+                val picked = withContext(Dispatchers.Default) {
+                    pickedResult.getOrDefault(emptyList())
+                        .filterNot { it.id in continueIds }
+                        .map { it.withLocalCounts(language, records) }
+                        .sortedForDisplay(sort)
+                }
+                val error = (continueResult.exceptionOrNull() ?: pickedResult.exceptionOrNull())
+                    ?.message
+                    ?.takeIf { continueLessons.isEmpty() && picked.isEmpty() }
+
+                _state.update { state ->
+                    if (state.languageCode != language) {
+                        state
+                    } else {
+                        state.copy(
+                            loading = false,
+                            refreshing = false,
+                            error = error,
+                            languageLevel = activeLevel,
+                            continueLessons = continueLessons,
+                            picked = picked,
+                            pickedSections = picked.groupByLevel(activeLevel),
+                        )
+                    }
+                }
+
+                val languages = languageListDeferred.await()
+                _state.update { state ->
+                    if (state.languageCode != language) {
+                        state
+                    } else {
+                        state.copy(languages = languages, languagesLoading = false)
+                    }
+                }
             }
         }
     }
 
     /** 左上角头像菜单里切换语言；本地记住选择，首页和资料库随之刷新。 */
     fun selectLanguage(code: String) {
-        val normalized = normalizeLanguage(code)
-        session.saveLanguage(normalized)
-        _state.update {
-            it.copy(
-                languageCode = normalized,
-                languageName = LanguageNames[normalized] ?: normalized.uppercase(),
-                languageLevel = null,
-            )
-        }
+        session.saveLanguage(normalizeLanguage(code))
         load(refresh = true)
     }
 
@@ -214,6 +266,15 @@ class HomeViewModel @Inject constructor(
         bookmarks.remove(session.language(), lesson.id)
         _state.update { it.copy(savedLessons = bookmarks.list(session.language())) }
     }
+
+    private suspend fun <T> request(block: suspend () -> T): Result<T> =
+        try {
+            Result.success(block())
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
 
     /**
      * 按接口返回的课程等级分成三档；没有等级的课程放最后。
