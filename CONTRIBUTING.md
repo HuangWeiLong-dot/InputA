@@ -1,6 +1,6 @@
 # Contributing to InputA
 
-InputA is an Android-only project. All shipped application code lives under `android/`, which is an independent Gradle project. This document defines contribution and development requirements; architecture details and implementation constraints are recorded in [CLAUDE.md](CLAUDE.md).
+InputA is an Android-only project. All shipped application code lives under `android/`, which is an independent Gradle project. This document defines contribution and development requirements; architecture details and implementation constraints are recorded in [AGENTS.md](AGENTS.md).
 
 By submitting a pull request, you agree that your contribution is provided under the repository's [MIT License](LICENSE).
 
@@ -222,7 +222,7 @@ CI uses JDK 17, installs Android SDK 37, and runs `:app:assembleDebug`. It uploa
 
 - The shipped app is a single `:app` module.
 - `android/PLAN.md` is an original design brief, not the current architecture specification.
-- Trust current source code and [CLAUDE.md](CLAUDE.md) over `PLAN.md`.
+- Trust current source code and [AGENTS.md](AGENTS.md) over `PLAN.md`.
 
 ### Kotlin and Compose
 

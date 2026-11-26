@@ -1,0 +1,68 @@
+name: Feature request
+description: Suggest a new feature or behavior improvement for InputA
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting, search existing issues and pull requests to avoid duplicate proposals.
+
+        > Do not attach LingQ tokens, passwords, real account credentials, AI API keys, keystore.properties, keystore files, or signed APK/AAB files.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Describe the current problem, the use case, and the value this feature would provide.
+      placeholder: While reading ..., I need ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired UI, interaction, or behavior. For large features or refactors, open an issue or discussion first to confirm direction with the maintainer.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe other approaches or workarounds you considered and why this proposal is better. Leave blank if none.
+    validations:
+      required: false
+  - type: textarea
+    id: scope
+    attributes:
+      label: Affected areas
+      description: List affected modules or screens, such as reader, explore, vocabulary, settings, data, design, or android.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define completion using verifiable conditions, for example, "Works in both the English and Chinese UI."
+    validations:
+      required: false
+  - type: dropdown
+    id: sensitive-scope
+    attributes:
+      label: Sensitive scope
+      description: Does this change affect architecture, persistence, authentication, network providers, release versioning, or public behavior? These changes require prior discussion.
+      options:
+        - No
+        - Yes
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues and pull requests and did not find the same proposal.
+          required: true
+        - label: I understand the maintainer must confirm scope and priority, and submitting an issue does not guarantee implementation.
+          required: true

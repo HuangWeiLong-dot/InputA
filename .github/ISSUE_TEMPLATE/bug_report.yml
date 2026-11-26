@@ -1,0 +1,116 @@
+name: Bug report
+description: Report a reproducible bug or unexpected behavior in InputA
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting, search existing issues to confirm the problem has not already been reported.
+
+        > Do not attach LingQ tokens, passwords, real account credentials, AI API keys, keystore.properties, keystore files, or signed APK/AAB files. If a credential has been exposed, stop using it, rotate it, and contact the maintainer.
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Enter the version shown in Settings. Leave blank if the app does not display a version number.
+      placeholder: "0.4.0"
+    validations:
+      required: false
+  - type: input
+    id: android-version
+    attributes:
+      label: Android version / API level
+      description: For example, Android 14 / API 34.
+      placeholder: "Android 14 / API 34"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      description: Enter the device or emulator model.
+      placeholder: "Google Pixel 8"
+    validations:
+      required: true
+  - type: dropdown
+    id: build-type
+    attributes:
+      label: Build type
+      description: Release and Debug builds have different application IDs and names. Confirm which one is installed.
+      options:
+        - Release
+        - Debug
+    validations:
+      required: true
+  - type: dropdown
+    id: app-language
+    attributes:
+      label: App language
+      options:
+        - English
+        - Simplified Chinese
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence of actions that triggers the problem.
+      placeholder: |
+        1. Open InputA
+        2. Go to ...
+        3. Tap ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Describe what actually happened. Include crashes, error messages, or unexpected state changes where relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Always
+        - Often
+        - Sometimes
+        - Happened once
+    validations:
+      required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression information
+      description: If the problem started after an update, enter the last working version and the first affected version. Leave blank if unknown.
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots, recordings, or logs
+      description: Provide screenshots, recordings, or logs with sensitive information removed. Leave blank if unavailable.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues and did not find the same problem.
+          required: true
+        - label: I removed tokens, passwords, API keys, and other sensitive information from this report.
+          required: true
