@@ -1,6 +1,6 @@
-# CLAUDE.md
+# InputA Project Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file is the shared repository guide for human contributors and coding agents. It records architecture, commands, workflow conventions, and implementation constraints.
 
 ## Repository status
 
@@ -37,6 +37,29 @@ History follows Conventional Commits. Nothing enforces this automatically — th
 - Breaking changes: `feat(api)!: …` plus a `BREAKING CHANGE:` footer.
 - PR titles use the same format. The repository allows squash merges, so the PR title (or the single commit headline) becomes the headline on `main`; treat it as the final commit message.
 - Reference issues in the footer (`Refs #12`), not in the summary.
+
+## Parallel agent development
+
+Multiple agents may develop features in parallel only when each agent has its own branch and Git worktree.
+
+- Never let two agents edit the same working directory at the same time.
+- Create every feature branch from the latest `main` and keep it short-lived.
+- Assign non-overlapping modules or files to each agent. Shared interfaces, design tokens, build configuration, version metadata, CI, and release files must have one owner or be changed serially.
+- Put cross-cutting changes in a separate, focused PR instead of mixing them into a feature branch.
+- Each agent must verify its own branch and record the commands and manual checks in its PR. One agent must not claim another branch's results.
+- Before merge, fetch and synchronize with current `main`; resolve conflicts in the feature worktree rather than rewriting shared history silently.
+- Do not force-push a reviewed branch without notifying the reviewer. When a rewrite is agreed, use `git push --force-with-lease`.
+- Do not commit or push unrelated work from another agent. Check `git status` before staging.
+- Remove temporary worktrees after their branches are merged or abandoned.
+
+Example worktree setup:
+
+```bash
+git fetch origin
+git worktree add ../inputa-feature-name -b feat/feature-name origin/main
+# Work and commit inside ../inputa-feature-name.
+git worktree remove ../inputa-feature-name
+```
 
 ## Review comment conventions
 

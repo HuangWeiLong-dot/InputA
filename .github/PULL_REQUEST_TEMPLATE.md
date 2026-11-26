@@ -63,5 +63,5 @@ Related issue: <!-- 例如 Refs #12；没有可删除此行。 -->
 - [ ] 认证凭据保持加密且不会写入日志；请求头和 Cookie 仅发送到预期主机。
 - [ ] 未破坏 Debug/Release 的应用 ID 与并存安装行为，也未向 PR CI 添加 Release 签名配置。
 - [ ] 新增 UI 文本已加入本地化映射，并同时覆盖英文和中文。
-- [ ] 公开行为或发布规则发生变化时，已同步更新 CONTRIBUTING.md、CLAUDE.md 及两个 README 中适用的内容。
+- [ ] 公开行为或发布规则发生变化时，已同步更新 CONTRIBUTING.md、AGENTS.md 及两个 README 中适用的内容。
 - [ ] 仅在维护者明确分配发布准备工作时修改版本元数据；发布提交遵循 SemVer 与仓库约定。
