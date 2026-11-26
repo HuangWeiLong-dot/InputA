@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.Locale
 import com.inputa.next.core.data.LearningLanguage
 import com.inputa.next.core.data.LessonSort
 import com.inputa.next.core.data.LessonSummary
@@ -57,6 +58,7 @@ import com.inputa.next.core.design.LqColors
 import com.inputa.next.core.design.LqDot
 import com.inputa.next.core.design.LqErrorState
 import com.inputa.next.core.design.LqIcons
+import com.inputa.next.core.design.LocalAppLanguage
 import com.inputa.next.core.design.LqLevelBadge
 import com.inputa.next.core.design.LqLoading
 import com.inputa.next.core.design.LqProgressBar
@@ -66,6 +68,7 @@ import com.inputa.next.core.design.LqSpace
 import com.inputa.next.core.design.LqType
 import com.inputa.next.core.design.RawText
 import com.inputa.next.core.design.RemoteImage
+import com.inputa.next.core.design.translate
 import com.inputa.next.feature.common.ProfileSheet
 
 /**
@@ -525,11 +528,17 @@ private fun KnownWordsCard(
     ignoredCount: Int,
     onOpenStats: () -> Unit,
 ) {
+    val totalCount = knownCount + inputaCount + ignoredCount
+    val knownProgress = if (totalCount <= 0) 0f else knownCount.toFloat() / totalCount
+    val statsLabel = LocalAppLanguage.current.translate("All Stats")
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(LqRadius.card))
-            .background(LqColors.blueStrong),
+            .background(
+                Brush.horizontalGradient(listOf(LqColors.knownStart, LqColors.knownEnd)),
+            )
+            .clickable(onClickLabel = statsLabel, onClick = onOpenStats),
     ) {
         Column(modifier = Modifier.padding(LqSpace.xl)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -553,11 +562,10 @@ private fun KnownWordsCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(LqRadius.pill))
                         .background(Color.White.copy(alpha = 0.18f))
-                        .clickable(onClick = onOpenStats)
                         .padding(horizontal = LqSpace.md, vertical = LqSpace.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("All Stats", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(statsLabel, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Icon(
                         LqIcons.ChevronRight,
                         contentDescription = null,
@@ -570,8 +578,23 @@ private fun KnownWordsCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(1.dp)
-                    .background(Color.White.copy(alpha = 0.18f)),
+                    .height(7.dp)
+                    .clip(RoundedCornerShape(LqRadius.pill))
+                    .background(Color.White.copy(alpha = 0.2f)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(knownProgress.coerceIn(0f, 1f))
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(LqRadius.pill))
+                        .background(Color.White),
+                )
+            }
+            Spacer(Modifier.height(LqSpace.sm))
+            Text(
+                text = "${formatNumber(totalCount)} words tracked",
+                color = Color.White.copy(alpha = 0.82f),
+                fontSize = 11.sp,
             )
             Spacer(Modifier.height(LqSpace.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -579,11 +602,7 @@ private fun KnownWordsCard(
                 BandDivider()
                 BandMetric("Ignored", formatNumber(ignoredCount), Modifier.weight(1f))
                 BandDivider()
-                BandMetric(
-                    "Total",
-                    formatNumber(knownCount + inputaCount + ignoredCount),
-                    Modifier.weight(1f),
-                )
+                BandMetric("Total", formatNumber(totalCount), Modifier.weight(1f))
             }
         }
     }
@@ -840,9 +859,9 @@ private fun PickedRow(lesson: LessonSummary, onClick: () -> Unit) {
 
 private fun formatNumber(value: Int): String {
     return when {
-        value >= 1_000_000 -> String.format("%.1fM", value / 1_000_000.0)
-        value >= 10_000 -> String.format("%.1fK", value / 1_000.0)
-        value >= 1_000 -> String.format("%,d", value)
+        value >= 1_000_000 -> String.format(Locale.US, "%.1fM", value / 1_000_000.0)
+        value >= 10_000 -> String.format(Locale.US, "%.1fK", value / 1_000.0)
+        value >= 1_000 -> String.format(Locale.US, "%,d", value)
         else -> value.toString()
     }
 }
