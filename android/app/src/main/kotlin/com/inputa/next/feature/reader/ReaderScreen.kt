@@ -1,9 +1,13 @@
 package com.inputa.next.feature.reader
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -45,6 +49,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import com.inputa.next.core.design.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,6 +59,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -106,6 +113,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inputa.next.core.data.Meaning
@@ -120,6 +128,7 @@ import com.inputa.next.core.design.translate
 import com.inputa.next.core.design.LqSpace
 import com.inputa.next.core.design.PrimaryButton
 import com.inputa.next.core.design.RawText
+import com.inputa.next.core.media.RepeatMode
 import com.inputa.next.core.util.Speaker
 import com.inputa.next.core.util.rememberSpeaker
 import kotlin.math.roundToInt
@@ -157,6 +166,29 @@ fun ReaderScreen(
     var modeMenu by remember { mutableStateOf(false) }
     var immersive by remember { mutableStateOf(false) }
     var tokenAnchor by remember { mutableStateOf<Rect?>(null) }
+    // 播放前只请求一次通知权限：拒绝后不再打扰，音频照常播放，只是通知栏不展示。
+    var notificationPermissionAsked by rememberSaveable { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(
+                context,
+                appLanguage.translate("Notification permission denied. Playback controls will not show in the notification shade."),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+    val requestNotificationPermission: () -> Unit = {
+        if (!notificationPermissionAsked &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionAsked = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     val listState = rememberLazyListState()
     val contentLayer = rememberGraphicsLayer()
     val blurredLayer = rememberGraphicsLayer()
@@ -196,7 +228,8 @@ fun ReaderScreen(
         ReaderMode.Page -> (state.page + 1).toFloat() / pageCount
         ReaderMode.Sentence -> (state.sentenceIndex + 1).toFloat() / totalSentences
     }
-    val audioPlaying = playerState.playing && playerState.entry?.lessonId == state.lesson?.id
+    val audioActive = playerState.entry?.lessonId == state.lesson?.id
+    val audioPlaying = audioActive && playerState.playing
     // 音频已经加载出时长后才显示进度条；暂停时保留当前位置。
     val audioProgress = playerState.entry
         ?.takeIf { it.lessonId == state.lesson?.id && playerState.durationMs > 0 }
@@ -316,21 +349,43 @@ fun ReaderScreen(
                     .navigationBarsPadding()
                     .padding(bottom = LqSpace.sm),
             ) {
-                audioProgress?.let { progress ->
-                    ReaderAudioProgress(
-                        progress = progress,
-                        onSeek = viewModel::seekAudio,
+                if (audioActive) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp)
                             .padding(bottom = LqSpace.xs),
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RepeatModeMenu(
+                            mode = playerState.repeatMode,
+                            onSelect = viewModel::setRepeatMode,
+                        )
+                        Spacer(Modifier.width(LqSpace.sm))
+                        if (audioProgress != null) {
+                            ReaderAudioProgress(
+                                progress = audioProgress,
+                                onSeek = viewModel::seekAudio,
+                                modifier = Modifier.weight(1f),
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.width(LqSpace.sm))
+                        VolumeMenu(
+                            volume = playerState.volume,
+                            onVolume = viewModel::setVolume,
+                        )
+                    }
                 }
                 ReaderMediaBar(
                     playing = audioPlaying,
                     mode = state.mode,
                     lingqCount = lessonLingqCount,
-                    onPlay = viewModel::playPauseAudio,
+                    onPlay = {
+                        requestNotificationPermission()
+                        viewModel.playPauseAudio()
+                    },
                     onMode = { modeMenu = true },
                     onCards = onOpenVocabulary,
                     onExpand = { immersive = true },
@@ -1189,6 +1244,165 @@ private fun SentenceText(
                 }
             },
     )
+}
+
+/**
+ * 循环模式按钮：关闭 / 单曲循环 / 列表循环，弹出菜单选择。
+ * 图标随模式切换，当前项高亮。
+ */
+@Composable
+private fun RepeatModeMenu(
+    mode: RepeatMode,
+    onSelect: (RepeatMode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(LqColors.surfaceHigh)
+                .clickable { expanded = true },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = when (mode) {
+                    RepeatMode.Off -> LqIcons.RepeatOff
+                    RepeatMode.One -> LqIcons.RepeatOne
+                    RepeatMode.All -> LqIcons.Repeat
+                },
+                contentDescription = when (mode) {
+                    RepeatMode.Off -> "Loop off"
+                    RepeatMode.One -> "Repeat one"
+                    RepeatMode.All -> "Repeat all"
+                },
+                tint = if (mode == RepeatMode.Off) LqColors.muted else LqColors.blue,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = LqColors.surfaceHigh,
+        ) {
+            RepeatModeMenuItem(
+                icon = LqIcons.RepeatOff,
+                label = "Loop off",
+                selected = mode == RepeatMode.Off,
+            ) {
+                expanded = false
+                onSelect(RepeatMode.Off)
+            }
+            RepeatModeMenuItem(
+                icon = LqIcons.RepeatOne,
+                label = "Repeat one",
+                selected = mode == RepeatMode.One,
+            ) {
+                expanded = false
+                onSelect(RepeatMode.One)
+            }
+            RepeatModeMenuItem(
+                icon = LqIcons.Repeat,
+                label = "Repeat all",
+                selected = mode == RepeatMode.All,
+            ) {
+                expanded = false
+                onSelect(RepeatMode.All)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RepeatModeMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = {
+            Text(
+                text = label,
+                color = if (selected) LqColors.blue else LqColors.text,
+                fontSize = 14.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) LqColors.blue else LqColors.text,
+                modifier = Modifier.size(17.dp),
+            )
+        },
+        trailingIcon = {
+            if (selected) {
+                Icon(LqIcons.Check, contentDescription = null, tint = LqColors.blue, modifier = Modifier.size(15.dp))
+            }
+        },
+        onClick = onClick,
+    )
+}
+
+/** 应用内音量控制：弹出横向滑条，0–100%，与系统媒体音量独立。 */
+@Composable
+private fun VolumeMenu(
+    volume: Float,
+    onVolume: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(LqColors.surfaceHigh)
+                .clickable { expanded = true },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = LqIcons.Volume,
+                contentDescription = "Volume",
+                tint = if (volume > 0f) LqColors.text else LqColors.muted,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = LqColors.surfaceHigh,
+            modifier = Modifier.width(180.dp),
+        ) {
+            Column(modifier = Modifier.padding(horizontal = LqSpace.md, vertical = LqSpace.xs)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Volume",
+                        color = LqColors.text,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "${(volume * 100).roundToInt()}%",
+                        color = LqColors.muted,
+                        fontSize = 12.sp,
+                    )
+                }
+                Slider(
+                    value = volume,
+                    onValueChange = onVolume,
+                    colors = SliderDefaults.colors(
+                        activeTrackColor = LqColors.blue,
+                        inactiveTrackColor = LqColors.surfaceHigh,
+                        thumbColor = Color.White,
+                    ),
+                )
+            }
+        }
+    }
 }
 
 /**

@@ -301,6 +301,21 @@ private val ZH: Map<String, String> = mapOf(
     "Audio and AI" to "音频与 AI",
     "Word pronunciation uses LingQ audio with a system voice fallback. The AI Tutor uses the provider, key and model you configure in the chat screen." to
         "单词发音优先使用 LingQ 音频，失败时回退系统语音。AI 导师使用你在聊天页配置的服务商、密钥和模型。",
+
+    // 课程音频播放
+    "Lesson audio" to "课程音频",
+    "Loading audio…" to "正在加载音频…",
+    "Playing" to "播放中",
+    "Paused" to "已暂停",
+    "Play" to "播放",
+    "Pause" to "暂停",
+    "Stop" to "停止",
+    "Loop off" to "关闭循环",
+    "Repeat one" to "单曲循环",
+    "Repeat all" to "列表循环",
+    "Volume" to "音量",
+    "Notification permission denied. Playback controls will not show in the notification shade." to
+        "通知权限被拒绝，播放控制不会显示在通知栏。",
     "Account and profile" to "账号与资料",
     "Sign-in uses your LingQ account. The name and photo shown on the home screen are local customisations and do not change your LingQ profile." to
         "登录使用你的 LingQ 账号。首页显示的名字和头像只在本机生效，不会修改 LingQ 资料。",
