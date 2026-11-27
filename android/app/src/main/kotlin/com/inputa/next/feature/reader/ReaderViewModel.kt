@@ -16,6 +16,7 @@ import com.inputa.next.core.data.local.LocalWordStore
 import com.inputa.next.core.data.local.SettingsStore
 import com.inputa.next.core.data.toPlaylistEntry
 import com.inputa.next.core.media.LessonPlayer
+import com.inputa.next.core.media.RepeatMode
 import com.inputa.next.core.media.WordPronouncer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -229,6 +230,12 @@ class ReaderViewModel @Inject constructor(
         if (duration <= 0) return
         player.seekTo((duration * progress.coerceIn(0f, 1f)).toInt())
     }
+
+    /** 设置课程音频循环模式：关闭 / 单曲循环 / 列表循环。 */
+    fun setRepeatMode(mode: RepeatMode) = player.setRepeatMode(mode)
+
+    /** 应用内课程音频音量（0f..1f），与系统媒体音量独立。 */
+    fun setVolume(volume: Float) = player.setVolume(volume)
 
     fun stopAudio() {
         player.stop()

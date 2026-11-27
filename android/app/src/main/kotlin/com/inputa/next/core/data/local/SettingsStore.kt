@@ -103,6 +103,16 @@ class SettingsStore @Inject constructor(
     private val _readerMode = MutableStateFlow(prefs.getString(KEY_READER_MODE, "Page") ?: "Page")
     val readerMode = _readerMode.asStateFlow()
 
+    /** 课程音频音量（0f..1f），独立于系统媒体音量。 */
+    private val _lessonVolume = MutableStateFlow(prefs.getFloat(KEY_LESSON_VOLUME, 1f).coerceIn(0f, 1f))
+    val lessonVolume = _lessonVolume.asStateFlow()
+
+    fun setLessonVolume(value: Float) {
+        val clamped = value.coerceIn(0f, 1f)
+        prefs.edit().putFloat(KEY_LESSON_VOLUME, clamped).apply()
+        _lessonVolume.value = clamped
+    }
+
     // 每日阅读提醒
     private val _reminderEnabled = MutableStateFlow(prefs.getBoolean(KEY_REMINDER, false))
     val reminderEnabled = _reminderEnabled.asStateFlow()
@@ -206,6 +216,7 @@ class SettingsStore @Inject constructor(
         const val KEY_PRONOUNCE_TAP = "pronounce_on_tap"
         const val KEY_AUTO_LINGQ = "auto_create_lingq"
         const val KEY_READER_MODE = "reader_mode"
+        const val KEY_LESSON_VOLUME = "lesson_volume"
         const val KEY_REMINDER = "reminder_enabled"
         const val KEY_REMINDER_HOUR = "reminder_hour"
         const val KEY_REMINDER_MINUTE = "reminder_minute"

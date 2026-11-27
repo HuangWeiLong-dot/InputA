@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.inputa.next.core.data.PlaylistEntry
 import com.inputa.next.core.data.local.PlaylistStore
 import com.inputa.next.core.media.LessonPlayer
+import com.inputa.next.core.media.RepeatMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,7 +33,13 @@ class PlaylistViewModel @Inject constructor(
                     state.positionMs >= state.durationMs - 800
                 if (ended && advancedFor != entry.lessonId) {
                     advancedFor = entry.lessonId
-                    playNext(entry)
+                    when (state.repeatMode) {
+                        // 单曲循环由 LessonPlayer 在 completion 里自行重播。
+                        RepeatMode.One -> Unit
+                        RepeatMode.All -> playNext(entry)
+                        // 关闭循环：顺序播下一首，列表播完就停。
+                        RepeatMode.Off -> playNextLinear(entry)
+                    }
                 }
             }
         }
@@ -63,6 +70,18 @@ class PlaylistViewModel @Inject constructor(
         val index = list.indexOfFirst { it.lessonId == current?.lessonId }
         val next = list.getOrNull(index + 1) ?: list.first()
         if (next.lessonId != current?.lessonId) {
+            advancedFor = null
+            player.play(next)
+        }
+    }
+
+    /** 循环关闭时的自动推进：不回绕，当前课不在列表或已到末尾就停。 */
+    private fun playNextLinear(current: PlaylistEntry) {
+        val list = items.value
+        val index = list.indexOfFirst { it.lessonId == current.lessonId }
+        if (index < 0) return
+        val next = list.getOrNull(index + 1) ?: return
+        if (next.lessonId != current.lessonId) {
             advancedFor = null
             player.play(next)
         }
