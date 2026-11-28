@@ -790,10 +790,26 @@ class LingqApi @Inject constructor(
             put("status", 2)
             put("source", "InputA")
         }
-        val root = runCatching {
-            sendJson("api/v3/$language/lessons/import/", "POST", body.toString())
-        }.getOrNull() ?: return null
-        return unwrapSingle(root)?.toLessonSummary()
+        val root = sendJson("api/v3/$language/lessons/import/", "POST", body.toString())
+        val response = unwrapSingle(root) ?: return null
+        response.toLessonSummary()?.let { return it }
+        // 有些导入响应只有 id；缺 title 时用请求标题合成，避免成功被误判为失败。
+        val responseId = response.int("contentId", "content_id", "lessonId", "lesson_id", "id", "pk")
+            ?: return null
+        return LessonSummary(
+            id = responseId,
+            title = title.trim(),
+            imageUrl = null,
+            audioUrl = null,
+            durationSec = null,
+            level = level,
+            newWordsCount = null,
+            collectionTitle = collectionTitle?.takeIf { it.isNotBlank() },
+            collectionId = null,
+            isCompleted = false,
+            isTaken = false,
+            libraryId = responseId,
+        )
     }
 
     private fun nowIso(): String = java.time.Instant.now().toString()

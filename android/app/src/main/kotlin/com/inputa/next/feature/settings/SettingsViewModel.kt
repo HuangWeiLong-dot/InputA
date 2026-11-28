@@ -36,6 +36,7 @@ class SettingsViewModel @Inject constructor(
     val aiConfigured: Boolean get() = session.hasAiConfig()
     val aiBaseUrl: String get() = session.aiBaseUrl()
     val aiModel: String get() = session.aiModel()
+    val mimoKeyConfigured: Boolean get() = session.hasMimoKey()
 
     val fontSize = settings.fontSize
     val lineHeight = settings.lineHeight
@@ -66,6 +67,10 @@ class SettingsViewModel @Inject constructor(
     fun setPronounceOnTap(enabled: Boolean) = settings.setPronounceOnTap(enabled)
     fun setAutoCreateLingq(enabled: Boolean) = settings.setAutoCreateLingq(enabled)
     fun setReaderMode(mode: String) = settings.setReaderMode(mode)
+
+    fun mimoKey(): String = session.mimoApiKey()
+
+    fun saveMimoKey(key: String) = session.saveMimoApiKey(key)
 
     fun setReminderEnabled(enabled: Boolean) {
         if (enabled) {

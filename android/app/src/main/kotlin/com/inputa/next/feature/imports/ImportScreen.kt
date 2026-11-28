@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import com.inputa.next.core.design.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,12 +41,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.inputa.next.core.data.LessonSummary
+import com.inputa.next.core.data.lessonLevelLabel
 import com.inputa.next.core.design.LqChip
 import com.inputa.next.core.design.LqColors
 import com.inputa.next.core.design.LqIcons
 import com.inputa.next.core.design.LqRadius
 import com.inputa.next.core.design.LqSpace
 import com.inputa.next.core.design.PrimaryButton
+import com.inputa.next.core.design.SecondaryButton
+import com.inputa.next.feature.settings.SheetToggle
 
 /** 导入课程：URL 或纯文本，走 LingQ 自己的 lessons/import/。 */
 @Composable
@@ -62,6 +66,10 @@ fun ImportScreen(
             onImported(it)
             viewModel.consumeImported()
         }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { viewModel.stopTtsPlayback() }
     }
 
     Column(
@@ -146,6 +154,89 @@ fun ImportScreen(
             }
             Spacer(Modifier.height(LqSpace.lg))
 
+            if (state.aiLoading) {
+                Text(
+                    "Cleaning with AI…",
+                    color = LqColors.blue,
+                    fontSize = 12.sp,
+                )
+                Spacer(Modifier.height(LqSpace.sm))
+            } else if (state.aiProcessed) {
+                Text(
+                    "AI cleaned the text. Review it, then import.",
+                    color = LqColors.blue,
+                    fontSize = 12.sp,
+                )
+                Spacer(Modifier.height(LqSpace.sm))
+            }
+            SecondaryButton(
+                label = if (state.aiLoading) {
+                    "Cancel AI processing"
+                } else {
+                    "Clean text with AI"
+                },
+                onClick = viewModel::toggleAi,
+                icon = LqIcons.Bot,
+                enabled = !state.loading && !state.ttsLoading,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(LqSpace.lg))
+
+            SheetToggle(
+                label = "Read-aloud preview (MiMo TTS)",
+                description = "Turn the text into speech and listen before importing.",
+                checked = state.ttsEnabled,
+                onToggle = { viewModel.setTtsEnabled(!state.ttsEnabled) },
+            )
+            if (state.ttsEnabled) {
+                Spacer(Modifier.height(LqSpace.sm))
+                when {
+                    state.ttsLoading -> Text(
+                        "Generating audio…",
+                        color = LqColors.blue,
+                        fontSize = 12.sp,
+                    )
+
+                    state.ttsReady -> Text(
+                        "Preview ready. Play it before importing.",
+                        color = LqColors.blue,
+                        fontSize = 12.sp,
+                    )
+                }
+                if (state.ttsLoading || state.ttsReady) {
+                    Spacer(Modifier.height(LqSpace.sm))
+                }
+                SecondaryButton(
+                    label = if (state.ttsLoading) {
+                        "Cancel audio generation"
+                    } else {
+                        "Generate preview audio"
+                    },
+                    onClick = viewModel::toggleTts,
+                    icon = LqIcons.Sparkles,
+                    enabled = !state.loading && !state.aiLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (state.ttsReady && !state.ttsLoading) {
+                    Spacer(Modifier.height(LqSpace.sm))
+                    val previewActive = state.ttsPlaying || state.ttsPreparing
+                    SecondaryButton(
+                        label = if (previewActive) "Stop preview" else "Play preview",
+                        onClick = {
+                            if (previewActive) {
+                                viewModel.stopTtsPlayback()
+                            } else {
+                                viewModel.toggleTtsPlayback()
+                            }
+                        },
+                        icon = if (previewActive) LqIcons.Pause else LqIcons.Play,
+                        enabled = !state.ttsLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            Spacer(Modifier.height(LqSpace.lg))
+
             ImportLabel("Collection (optional)")
             ImportField(
                 value = state.collection,
@@ -161,7 +252,7 @@ fun ImportScreen(
             ) {
                 items((1..6).toList()) { level ->
                     LqChip(
-                        label = "Level $level",
+                        label = lessonLevelLabel(level),
                         selected = state.level == level,
                         onClick = { viewModel.setLevel(level) },
                     )
@@ -178,7 +269,7 @@ fun ImportScreen(
                 label = if (state.loading) "Importing…" else "Import Lesson",
                 onClick = viewModel::submit,
                 loading = state.loading,
-                enabled = !state.loading,
+                enabled = !state.loading && !state.aiLoading && !state.ttsLoading,
             )
             Spacer(Modifier.height(LqSpace.xxxl))
         }

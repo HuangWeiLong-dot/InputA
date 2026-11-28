@@ -21,16 +21,27 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import com.inputa.next.core.design.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.inputa.next.core.design.AppLanguage
@@ -40,6 +51,7 @@ import com.inputa.next.core.design.LqIcons
 import com.inputa.next.core.design.LqProgressBar
 import com.inputa.next.core.design.LqRadius
 import com.inputa.next.core.design.LqSpace
+import com.inputa.next.core.design.PrimaryButton
 
 internal fun formatGoal(value: Int): String = String.format("%,d", value)
 
@@ -397,6 +409,82 @@ fun InterfaceLanguageSheet(
 }
 
 @Composable
+fun MimoApiKeySheet(
+    initialKey: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var apiKey by remember { mutableStateOf(initialKey) }
+    SettingsSheetScaffold(
+        title = "MiMo Speech Synthesis",
+        subtitle = "Preview audio for imported articles",
+        onDismiss = onDismiss,
+    ) {
+        PasswordField(
+            label = "API Key",
+            value = apiKey,
+            onValueChange = { apiKey = it },
+            placeholder = "MiMo API Key",
+        )
+        Spacer(Modifier.height(LqSpace.lg))
+        PrimaryButton(
+            label = "Save",
+            onClick = { onSave(apiKey.trim()) },
+        )
+        Spacer(Modifier.height(LqSpace.md))
+        Text(
+            text = "Free while in beta. The key is stored encrypted on this device and is not shared with the chat AI.",
+            color = LqColors.muted,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+        )
+    }
+}
+
+@Composable
+private fun PasswordField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(label, color = LqColors.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(LqSpace.sm))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .clip(RoundedCornerShape(LqRadius.control))
+                .background(LqColors.surface)
+                .border(1.dp, LqColors.border, RoundedCornerShape(LqRadius.control))
+                .padding(horizontal = LqSpace.md),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(color = LqColors.text, fontSize = 14.sp),
+                cursorBrush = SolidColor(LqColors.blue),
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { inner ->
+                    if (value.isEmpty()) {
+                        Text(placeholder, color = LqColors.faint, fontSize = 14.sp)
+                    }
+                    inner()
+                },
+            )
+        }
+    }
+}
+
+@Composable
 private fun LockedOption(label: String, selected: Boolean) {
     Row(
         modifier = Modifier
@@ -422,7 +510,7 @@ private fun LockedOption(label: String, selected: Boolean) {
 }
 
 @Composable
-private fun SheetToggle(
+internal fun SheetToggle(
     label: String,
     description: String,
     checked: Boolean,

@@ -61,6 +61,7 @@ private enum class SettingsSheet {
     Theme,
     Interface,
     Profile,
+    MimoKey,
 }
 
 /** 设置页。所有行都接到真实存储或页面，不再有「下一阶段」的占位提示。 */
@@ -208,6 +209,12 @@ fun SettingsScreen(
                 icon = LqIcons.Settings,
                 onClick = onOpenChat,
             )
+            SettingRow(
+                label = "MiMo API Key",
+                value = if (viewModel.mimoKeyConfigured) "Configured" else "Not configured",
+                icon = LqIcons.MusicNote,
+                onClick = { sheet = SettingsSheet.MimoKey },
+            )
         }
 
         SettingsGroup("READER") {
@@ -338,6 +345,15 @@ fun SettingsScreen(
         SettingsSheet.Interface -> InterfaceLanguageSheet(
             current = appLanguage,
             onSelect = viewModel::setAppLanguage,
+            onDismiss = { sheet = null },
+        )
+
+        SettingsSheet.MimoKey -> MimoApiKeySheet(
+            initialKey = viewModel.mimoKey(),
+            onSave = { key ->
+                viewModel.saveMimoKey(key)
+                sheet = null
+            },
             onDismiss = { sheet = null },
         )
 

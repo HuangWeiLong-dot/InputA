@@ -245,6 +245,7 @@ fun SecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
+    enabled: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -254,7 +255,13 @@ fun SecondaryButton(
             .clip(RoundedCornerShape(LqRadius.pill))
             .background(if (pressed) LqColors.surfaceHigh else LqColors.surface)
             .border(1.dp, LqColors.border, RoundedCornerShape(LqRadius.pill))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            )
+            .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
             .padding(horizontal = LqSpace.xl),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,

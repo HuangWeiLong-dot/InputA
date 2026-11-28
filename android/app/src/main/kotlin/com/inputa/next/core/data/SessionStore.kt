@@ -129,6 +129,21 @@ class SessionStore @Inject constructor(
             .apply()
     }
 
+    // -----------------------------------------------------------------------
+    // MiMo 语音合成（与聊天 AI 凭据分开保存）
+    // -----------------------------------------------------------------------
+
+    fun mimoApiKey(): String = prefs.getString(KEY_MIMO_KEY, null).orEmpty()
+
+    fun hasMimoKey(): Boolean = mimoApiKey().isNotBlank()
+
+    fun saveMimoApiKey(apiKey: String) {
+        val trimmed = apiKey.trim()
+        prefs.edit().apply {
+            if (trimmed.isBlank()) remove(KEY_MIMO_KEY) else putString(KEY_MIMO_KEY, trimmed)
+        }.apply()
+    }
+
     private companion object {
         const val KEY_TOKEN = "token"
         const val KEY_USERNAME = "username"
@@ -139,5 +154,6 @@ class SessionStore @Inject constructor(
         const val KEY_AI_BASE = "ai_base_url"
         const val KEY_AI_KEY = "ai_api_key"
         const val KEY_AI_MODEL = "ai_model"
+        const val KEY_MIMO_KEY = "mimo_api_key"
     }
 }
